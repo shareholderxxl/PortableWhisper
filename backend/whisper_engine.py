@@ -44,9 +44,9 @@ def setup_cuda_paths():
             Path(sys._MEIPASS) / "nvidia" / "cuda_nvrtc" / "bin",
         ])
 
-    # Add downloaded GPU libraries from AppData (for optional GPU install)
-    appdata = Path(os.getenv('APPDATA') or os.path.expanduser('~'))
-    gpu_libs_dir = appdata / 'Whisper4Windows' / 'gpu_libs'
+    # Add downloaded GPU libraries from central app dir (for optional GPU install)
+    from runtime_hooks.path_redirect import GPU_LIBS_DIR
+    gpu_libs_dir = GPU_LIBS_DIR
     if gpu_libs_dir.exists():
         logger.info(f"   Found downloaded GPU libraries: {gpu_libs_dir}")
         cuda_paths.extend([
@@ -145,17 +145,15 @@ setup_cuda_paths()
 
 # Get the appropriate models directory
 def get_models_dir() -> Path:
-    """Get the models directory, using AppData for bundled apps"""
-    if getattr(sys, 'frozen', False):
-        # Running as bundled executable
-        appdata = Path(os.getenv('APPDATA') or os.path.expanduser('~'))
-        models_dir = appdata / 'Whisper4Windows' / 'models'
-    else:
-        # Running from source
-        models_dir = Path("models")
+    """Get the models directory.
 
-    models_dir.mkdir(parents=True, exist_ok=True)
-    return models_dir
+    Liefert immer das zentrale Verzeichnis unter
+    %LOCALAPPDATA%/Whisper4Windows/models (runtime_hooks.path_redirect),
+    sowohl im Source- als auch im gebündelten Modus.
+    """
+    from runtime_hooks.path_redirect import MODELS_DIR
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    return MODELS_DIR
 
 # Try to import faster-whisper
 try:

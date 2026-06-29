@@ -29,15 +29,14 @@ CUDA_PACKAGES = {
 
 
 def get_gpu_libs_dir() -> Path:
-    """Get the directory where GPU libraries are stored"""
-    if getattr(sys, 'frozen', False):
-        # Running as bundled executable - use AppData
-        appdata = Path(os.getenv('APPDATA') or os.path.expanduser('~'))
-        gpu_dir = appdata / 'Whisper4Windows' / 'gpu_libs'
-    else:
-        # Running from source - use local directory
-        gpu_dir = Path("gpu_libs")
+    """Get the directory where GPU libraries are stored.
 
+    Liefert immer das zentrale Verzeichnis unter %LOCALAPPDATA%/Whisper4Windows/
+    (definiert in runtime_hooks.path_redirect), sowohl im Source- als auch im
+    gebündelten Modus. So landen heruntergeladene CUDA-Libs an genau einer Stelle.
+    """
+    from runtime_hooks.path_redirect import get_gpu_libs_dir as _central_dir
+    gpu_dir = _central_dir()
     gpu_dir.mkdir(parents=True, exist_ok=True)
     return gpu_dir
 

@@ -3,6 +3,11 @@ Whisper4Windows Backend Server
 FastAPI server for local speech-to-text processing
 """
 
+# Pfad-Management GANZ OBEN importieren: setzt %LOCALAPPDATA%-Pfade und
+# HuggingFace-Cache-Umgebungsvariablen, BEVOR faster_whisper/huggingface_hub
+# geladen werden. Muss vor jedem anderen App-Modul kommen.
+from runtime_hooks import path_redirect  # noqa: F401  (Seiteneffekt-Import)
+
 import logging
 import asyncio
 from contextlib import asynccontextmanager
