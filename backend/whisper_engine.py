@@ -155,6 +155,27 @@ def get_models_dir() -> Path:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     return MODELS_DIR
 
+
+def _model_cache_dir_name(model: str) -> str:
+    """Mappe einen Modell-Alias ODER eine HF-Repo-ID auf den HuggingFace-Cache-
+    Verzeichnisnamen (Layout: 'models--{org}--{name}').
+
+    - Eingebaute Aliase (tiny, base, small, medium, large-v3, large-v3-turbo)
+      zeigen auf die vorkonvertierten Systran-CTranslate2-Repos.
+    - Vollständige Repo-IDs der Form 'org/repo' werden unterstützt, sobald das
+      Ziel-Repo im CTranslate2-Format vorliegt.
+
+    HINWEIS zum KONZEPT-Modell 'primeline/whisper-large-v3-german':
+      Dieses Repo liegt im HuggingFace-Transformers-Format vor und kann NICHT
+      direkt von faster-whisper geladen werden (CTranslate2-Format erforderlich).
+      Erst als Option aufnehmen, wenn eine CTranslate2-konvertierte Quelle
+      ausgewählt ist (siehe PHASE1_PLAN.md / KONZEPT.md Phase 1, Schritt 3).
+    """
+    if "/" in model:
+        org, name = model.split("/", 1)
+        return f"models--{org}--{name}"
+    return f"models--Systran--faster-whisper-{model}"
+
 # Try to import faster-whisper
 try:
     from faster_whisper import WhisperModel
@@ -179,7 +200,9 @@ class WhisperEngine:
         Initialize Whisper engine
         
         Args:
-            model_size: Model size (tiny, base, small, medium, large-v3, large-v3-turbo)
+            model_size: Modell-Alias (tiny, base, small, medium, large-v3,
+                        large-v3-turbo) ODER eine HF-Repo-ID 'org/repo'
+                        (erfordert CTranslate2-Format).
             device: Device to use (cpu, cuda, auto)
             compute_type: Compute type (int8, float16, float32, auto)
         """
@@ -233,26 +256,28 @@ class WhisperEngine:
     def is_model_downloaded(self, model_size: str = None) -> bool:
         """
         Check if a model is already downloaded
-        
+
         Args:
-            model_size: Model size to check (uses self.model_size if None)
-            
+            model_size: Model alias (tiny/base/small/medium/large-v3/large-v3-turbo)
+                        ODER eine vollständige HF-Repo-ID der Form 'org/repo'.
+                        (uses self.model_size if None)
+
         Returns:
             True if model is downloaded, False otherwise
         """
         if model_size is None:
             model_size = self.model_size
-            
+
         models_dir = get_models_dir()
-        model_path = models_dir / f"models--Systran--faster-whisper-{model_size}"
-        
+        model_path = models_dir / _model_cache_dir_name(model_size)
+
         # Check if model directory exists and has required files
         if model_path.exists():
             snapshot_dir = model_path / "snapshots"
             if snapshot_dir.exists() and any(snapshot_dir.iterdir()):
                 logger.info(f"✅ Model '{model_size}' is already downloaded")
                 return True
-        
+
         logger.warning(f"⚠️ Model '{model_size}' is not downloaded")
         return False
     
