@@ -13,6 +13,8 @@ backend/*.egg-info/
 backend/dist/
 backend/build/
 backend/*.spec
+# Ausnahme: unsere gepflegte Spec-Datei wird versioniert
+!backend/whisper-backend.spec
 
 # Whisper models (large files) - exclude ALL models
 # Users will download them automatically on first run (~500MB for small model)
