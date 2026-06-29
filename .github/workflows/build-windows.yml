@@ -94,12 +94,12 @@ jobs:
         with:
           workspaces: frontend/src-tauri
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0" --locked
-
+      # Tauri-CLI als prebuilt Binary via npx (windows-latest hat Node vorinstalliert).
+      # Schneller als 'cargo install tauri-cli' (das compiliert alles aus dem Source,
+      # ~10-15 min). npx legt nur die native Binary vor.
       - name: Build Tauri app (portable, no bundle)
         working-directory: frontend/src-tauri
-        run: cargo tauri build --no-bundle
+        run: npx --yes @tauri-apps/cli@latest build --no-bundle
 
       - name: Verify main exe
         run: |
