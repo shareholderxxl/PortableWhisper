@@ -35,6 +35,17 @@
       "menuOnLeftClick": false
     }
   },
+  "plugins": {
+    "shell": {
+      "scope": [
+        {
+          "name": "binaries/whisper-backend",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
