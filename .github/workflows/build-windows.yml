@@ -93,6 +93,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: frontend/src-tauri
+          # Cache-SAVE deaktiviert: das Komprimieren des mehr-GB target/-Verzeichnisses
+          # eines Tauri-Builds dauert so lange, dass der Free-Tier-Runner die
+          # Heartbeat-Verbindung verliert ("runner lost communication") und der
+          # Job rot wird, obwohl alle Build-Schritte + Artifact-Upload erfolgreich
+          # waren. Restore greift weiterhin auf fruehere Caches zurueck.
+          save-if: false
 
       # Tauri-CLI als prebuilt Binary via npx (windows-latest hat Node vorinstalliert).
       # Schneller als 'cargo install tauri-cli' (das compiliert alles aus dem Source,
