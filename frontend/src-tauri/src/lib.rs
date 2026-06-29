@@ -973,7 +973,7 @@ async fn restart_backend(app: AppHandle, state: State<'_, AppState>) -> Result<(
     use tauri_plugin_shell::ShellExt;
 
     let sidecar_command = app.shell()
-        .sidecar("whisper-backend")
+        .sidecar("binaries/whisper-backend")
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?;
 
     let (_rx, child) = sidecar_command
@@ -1120,7 +1120,7 @@ pub fn run() {
 
             let sidecar_command = app.app_handle()
                 .shell()
-                .sidecar("whisper-backend")
+                .sidecar("binaries/whisper-backend")
                 .expect("Failed to create sidecar command");
 
             let (_rx, child) = sidecar_command
