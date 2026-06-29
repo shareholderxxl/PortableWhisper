@@ -29,6 +29,7 @@ backend/recordings/
 frontend/src-tauri/target/
 !frontend/src-tauri/target/release/bundle/msi/Whisper4Windows_0.1.0_x64_en-US.msi
 frontend/src-tauri/binaries/
+!frontend/src-tauri/binaries/.gitkeep
 frontend/node_modules/
 **/Cargo.lock
 

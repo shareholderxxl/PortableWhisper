@@ -1,0 +1,4 @@
+# Platzhalter — Sidecar-Verzeichnis.
+# Die eigentliche whisper-backend.exe ist ein Build-Artifakt (gitignored)
+# und wird vom PyInstaller-Build bzw. GitHub-Actions-Workflow hier abgelegt.
+# Siehe backend/whisper-backend.spec und .github/workflows/build-windows.yml.
