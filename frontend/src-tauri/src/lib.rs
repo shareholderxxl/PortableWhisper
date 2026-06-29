@@ -1061,7 +1061,7 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             log::info!("🔒 Single instance check - app already running, focusing existing window");
@@ -1324,7 +1324,26 @@ pub fn run() {
             check_for_updates,
             restart_backend
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    // Globaler Exit-Handler: Backend-Sidecar bei JEDEM Beendigungspfad sauber
+    // killen (Tray-Quit, OS-Shutdown, taskkill, Hauptfenster-Zerstörung),
+    // nicht nur im Tray-Quit-Pfad. Verhindert herrenlose whisper-backend.exe.
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            let state: tauri::State<AppState> = app_handle.state();
+            tauri::async_runtime::block_on(async {
+                if let Some(child) = state.backend_child.lock().await.take() {
+                    log::info!("🛑 App exiting: killing backend sidecar");
+                    if let Err(e) = child.kill() {
+                        log::warn!("⚠️ Failed to kill backend on exit: {}", e);
+                    } else {
+                        log::info!("✅ Backend sidecar killed on exit");
+                    }
+                }
+            });
+        }
+    });
 }
 
