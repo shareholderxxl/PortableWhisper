@@ -103,16 +103,20 @@ jobs:
 
       - name: Verify main exe
         run: |
-          $exe = "frontend/src-tauri/target/release/Whisper4Windows.exe"
+          # --no-bundle laesst den Cargo-Binary-Namen stehen (app.exe);
+          # der productName-Rename ("Whisper4Windows.exe") passiert nur beim Bundling.
+          $exe = "frontend/src-tauri/target/release/app.exe"
+          Write-Host "--- target/release .exe Dateien ---"
+          Get-ChildItem frontend/src-tauri/target/release -Filter *.exe -ErrorAction SilentlyContinue | Format-Table Name,Length
           if (-not (Test-Path $exe)) {
-            throw "Whisper4Windows.exe fehlt — Tauri-Build fehlgeschlagen"
+            throw "app.exe fehlt unter target/release (Tauri-Build fehlgeschlagen?)"
           }
           Write-Host "Main exe gebaut: $((Get-Item $exe).Length) Bytes"
 
       # ============================================================
       # 4. Portables ZIP zusammenstellen
       #    Struktur nach Entpacken:
-      #      Whisper4Windows.exe
+      #      Whisper4Windows.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
       #      binaries/whisper-backend-x86_64-pc-windows-msvc.exe
       #      README.md, LICENSE
       # ============================================================
@@ -121,7 +125,9 @@ jobs:
           $stage = "${{ runner.temp }}/portable"
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
 
-          Copy-Item frontend/src-tauri/target/release/Whisper4Windows.exe $stage/
+          # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
+          # Whisper4Windows.exe in das ZIP legen.
+          Copy-Item frontend/src-tauri/target/release/app.exe "$stage/Whisper4Windows.exe"
           Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe $stage/binaries/
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
@@ -135,6 +141,8 @@ jobs:
 
           Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force
           Write-Host "ZIP erstellt: $zip"
+          Write-Host "--- ZIP-Inhalt ---"
+          (Get-ChildItem -Recurse $stage).FullName
           "ZIP_PATH=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       # ============================================================
