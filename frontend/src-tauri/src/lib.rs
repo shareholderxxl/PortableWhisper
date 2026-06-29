@@ -345,7 +345,7 @@ async fn cmd_start_recording(app: AppHandle, state: State<'_, AppState>) -> Resu
             request_body["device_index"] = serde_json::json!(device_index);
         }
 
-        match client.post("http://127.0.0.1:8000/start")
+        match client.post("http://127.0.0.1:8765/start")
             .json(&request_body)
             .send()
             .await
@@ -369,7 +369,7 @@ async fn cmd_cancel_recording(app: AppHandle) -> Result<(), String> {
     // Call backend /cancel
     let client = reqwest::Client::new();
     tokio::spawn(async move {
-        match client.post("http://127.0.0.1:8000/cancel")
+        match client.post("http://127.0.0.1:8765/cancel")
             .send()
             .await
         {
@@ -407,7 +407,7 @@ async fn cmd_stop_recording(app: AppHandle, state: State<'_, AppState>) -> Resul
 
     // Call backend /stop to get transcription
     let client = reqwest::Client::new();
-    let text_to_inject = match client.post("http://127.0.0.1:8000/stop")
+    let text_to_inject = match client.post("http://127.0.0.1:8765/stop")
         .send()
         .await
     {
@@ -509,7 +509,7 @@ async fn set_model_and_device(
             serde_json::json!(language)
         };
 
-        match client.post("http://127.0.0.1:8000/load_model")
+        match client.post("http://127.0.0.1:8765/load_model")
             .json(&serde_json::json!({
                 "model_size": model_clone,
                 "device": device_clone,
@@ -1276,7 +1276,7 @@ pub fn run() {
                     serde_json::json!(language)
                 };
 
-                match client.post("http://127.0.0.1:8000/load_model")
+                match client.post("http://127.0.0.1:8765/load_model")
                     .json(&serde_json::json!({
                         "model_size": model,
                         "device": device,

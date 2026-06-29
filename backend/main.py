@@ -23,6 +23,10 @@ from audio_capture import AudioCapture
 from whisper_engine import WhisperEngine
 import gpu_manager
 
+# Konfiguration
+BACKEND_HOST = "127.0.0.1"  # localhost only — kein externer Zugriff
+BACKEND_PORT = 8765         # Sidecar-Port (Phase 1)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -73,9 +77,9 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("🚀 Whisper4Windows Backend Starting...")
     logger.info("=" * 60)
-    logger.info(f"Server: http://127.0.0.1:8000")
-    logger.info(f"API Docs: http://127.0.0.1:8000/docs")
-    logger.info(f"Health Check: http://127.0.0.1:8000/health")
+    logger.info(f"Server: http://{BACKEND_HOST}:{BACKEND_PORT}")
+    logger.info(f"API Docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
+    logger.info(f"Health Check: http://{BACKEND_HOST}:{BACKEND_PORT}/health")
     logger.info("=" * 60)
 
     # Check GPU libraries at startup
@@ -659,7 +663,7 @@ if __name__ == "__main__":
     
     uvicorn.run(
         app,
-        host="127.0.0.1",
-        port=8000,
+        host=BACKEND_HOST,
+        port=BACKEND_PORT,
         log_level="info"
     )

@@ -16,7 +16,7 @@ if (-not (Get-Command "cargo-tauri" -ErrorAction SilentlyContinue)) {
 # Start backend server (once we have it)
 Write-Host "📡 Starting backend server..." -ForegroundColor Blue
 # cd backend
-# python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000 &
+# python -m uvicorn main:app --reload --host 127.0.0.1 --port 8765 &
 
 # Start frontend in dev mode
 Write-Host "🖥️ Starting frontend..." -ForegroundColor Blue
