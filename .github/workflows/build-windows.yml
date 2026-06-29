@@ -30,6 +30,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Windows Defender auf den Runnern quarantänt frisch gebaute
+      # PyInstaller-Onefile-Exes (False Positive). Workspace freigeben.
+      - name: Exclude workspace from Defender
+        run: |
+          try {
+            Set-MpPreference -ExclusionPath $env:GITHUB_WORKSPACE -ErrorAction Stop
+            Write-Host "Defender-Exclusion gesetzt fuer: $env:GITHUB_WORKSPACE"
+          } catch {
+            Write-Host "Defender-Exclusion nicht moeglich: $($_.Exception.Message)"
+          }
+
       # ============================================================
       # 1. Python-Backend bauen (PyInstaller, ohne torch)
       # ============================================================
@@ -52,8 +63,10 @@ jobs:
 
       - name: Verify sidecar binary
         run: |
+          Write-Host "--- Inhalt backend/dist ---"
+          Get-ChildItem backend/dist -ErrorAction SilentlyContinue | Format-Table Name,Length
           if (-not (Test-Path backend/dist/whisper-backend.exe)) {
-            throw "backend/dist/whisper-backend.exe fehlt — PyInstaller-Build fehlgeschlagen"
+            throw "backend/dist/whisper-backend.exe fehlt (Defender? Build-Fehler?)"
           }
           Write-Host "Sidecar gebaut: $((Get-Item backend/dist/whisper-backend.exe).Length) Bytes"
 
