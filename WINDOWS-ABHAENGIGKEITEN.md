@@ -2,6 +2,11 @@
 
 Dieses Projekt wird unter **Windows** gebaut. Der Linux-Server dient nur zur Vorbereitung und Code-Analyse.
 
+> **Hinweis (Phase 1):** Der primäre Build-Pfad ist jetzt die GitHub-Actions-
+> Pipeline `.github/workflows/build-windows.yml` (Runner `windows-latest`). Die
+> unten genannten Tools werden dort automatisch eingerichtet. Eine lokale
+> Installation ist nur für manuelle Builds / Fehlersuche nötig.
+
 ## 1. Rust & MSVC Build Tools
 
 Tauri benötigt einen C++-Compiler unter Windows — den **MSVC Build Tools** (Microsoft Visual C++).
@@ -47,15 +52,15 @@ winget install Python.Python.3.11
 # Paketmanager
 python -m ensurepip --upgrade
 
-# Abhängigkeiten installieren
+# Abhängigkeiten installieren (ohne torch)
 cd backend
-pip install -r requirements- portable.txt  # ohne torch
+pip install -r requirements-portable.txt  # ohne torch, mit huggingface_hub + pyinstaller
 
 # PyInstaller
 pip install pyinstaller
 
 # Optional: UPX-Kompression (kleinere .exe)
-# https://github.com/upx/upx/releases/ — upx.exe in den PATH kopieren
+# https://github.com/upx/upx/releases — upx.exe in den PATH kopieren
 ```
 
 ### Prüfen

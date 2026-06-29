@@ -1,5 +1,15 @@
 # Master-Prompt: Whisper4Windows Refactoring, NPU Optimization & Handy-UI Integration
 
+> **Status (Phase 1):** In Umsetzung auf Branch `phase-1`. Details und
+> Entscheidungen siehe `PHASE1_PLAN.md` und `AGENTS.md`.
+> Wichtige Abweichungen vom Original-Prompt:
+> - Standard-Modell bleibt `small`; `primeline/whisper-large-v3-german` ist
+>   zurückgestellt (liegt im Transformers-Format vor, faster-whisper braucht
+>   CTranslate2) — siehe `whisper_engine.py`.
+> - Backend-Port: 8765 (statt 8000).
+> - PyInstaller **ohne torch** (nur ctranslate2).
+> - Build-Artefakt: nur portables ZIP (kein MSI/NSIS), gebaut via GitHub Actions.
+
 ## Rolle & Ziel
 Du bist ein erfahrener Systems Engineer und AI Developer. Unser Ziel ist es, das kompakte Repository `Whisper4Windows` (Tauri-Frontend + Python-FastAPI-Backend) zu klonen und in eine kommerziell nutzbare, komplett portable STT-Anwendung ohne Admin-Rechte zu verwandeln. 
 

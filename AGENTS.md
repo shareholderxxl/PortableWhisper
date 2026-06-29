@@ -17,8 +17,8 @@ Whisper4Windows — local, offline speech-to-text for Windows. Stack:
 
 Builds run **only on Windows** (`WINDOWS-ABHAENGIGKEITEN.md`). This Linux
 server is for code preparation and analysis only. Do not attempt to compile
-Tauri/PyInstaller artifacts here. Final builds go through GitHub Actions on
-`windows-latest` (workflow not yet present — see `github-actions-build` skill).
+Tauri/PyInstaller artifacts here. Builds go through GitHub Actions on
+`windows-latest` via `.github/workflows/build-windows.yml` (portable ZIP).
 
 ## Development workflow (Windows)
 
@@ -93,16 +93,18 @@ and code templates — consult the matching one before touching that area.
 
 ## Current roadmap state
 
-Phase 1 (Zero-Dependency & Portability) is **in planning**, not started.
-Confirmed decisions an agent must respect:
-- Default model stays `small`; `primeline/whisper-large-v3-german` is an option.
-- Backend port → **8765** (currently 8000).
-- PyInstaller **without torch** (ctranslate2 only).
-- Build artifact: **portables ZIP only** (no MSI/NSIS, no UAC).
-- Work happens on branch **`phase-1`**.
-- File paths route to `%LOCALAPPDATA%/Whisper4Windows/{models,temp,logs}`.
-
-See `PHASE1_PLAN.md` (to be created) for the full step list.
+Phase 1 (Zero-Dependency & Portability) is **in implementation** on branch
+`phase-1`. See `PHASE1_PLAN.md` for the full step list. Implemented decisions:
+- Default model stays `small`; `large-v3-turbo` is the quality option.
+  `primeline/whisper-large-v3-german` is **deferred** — it's in HF Transformers
+  format but faster-whisper needs CTranslate2 (see `whisper_engine.py` note).
+- Backend port = **8765** (constants `BACKEND_HOST`/`BACKEND_PORT` in `main.py`).
+- PyInstaller **without torch** (ctranslate2 only); spec = `backend/whisper-backend.spec`.
+- Build artifact: **portable ZIP only** (no MSI/NSIS, no UAC) via GitHub Actions.
+- File paths route to `%LOCALAPPDATA%/Whisper4Windows/{models,temp,logs}` via
+  `backend/runtime_hooks/path_redirect.py` (imported first in `main.py`).
+- Sidecar lifecycle: global `RunEvent::Exit` handler kills the backend on any
+  exit path (`lib.rs`); sidecar scope registered in `tauri.conf.json`.
 
 ## Key docs
 
