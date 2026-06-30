@@ -33,7 +33,7 @@ reqwest = { version = "0.11", features = ["json"] }
 # damit inkompatibel zu cookie 0.18.1 (transitiv ueber den reqwest 0.11-Baum).
 # Ohne Cargo.lock wuerde der Resolver bei jedem Build die neueste (kaputte)
 # time-Version ziehen. Pin kann entfallen, sobald reqwest auf >=0.12 gehoben wird.
-time = "<0.3.52"
+time = "=0.3.51"
 
 [dependencies.windows]
 version = "0.52"

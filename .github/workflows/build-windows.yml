@@ -106,6 +106,18 @@ jobs:
           # waren. Restore greift weiterhin auf fruehere Caches zurueck.
           save-if: false
 
+      # Force-regenerate Cargo.lock: time 0.3.52 broke cookie 0.18.1 (parse()
+      # Signatur). Cargo.toml pinnt time=0.3.51; generate-lockfile stellt sicher,
+      # dass keine stale/restaurierte Lockfile die alte (kaputte) 0.3.52 uebrig behaelt.
+      - name: Pin time crate (avoid 0.3.52 cookie breakage)
+        working-directory: frontend/src-tauri
+        run: |
+          cargo generate-lockfile
+          cargo update -p time --precise 0.3.51
+          Write-Host "Pinned time to 0.3.51:" 
+          (Select-String -Path Cargo.lock -Pattern 'name = "time"').Line
+          (Select-String -Path Cargo.lock -Pattern 'name = "time"' -Context 0,1).Context.PostContext
+
       # Tauri-CLI als prebuilt Binary via npx (windows-latest hat Node vorinstalliert).
       # Schneller als 'cargo install tauri-cli' (das compiliert alles aus dem Source,
       # ~10-15 min). npx legt nur die native Binary vor.
