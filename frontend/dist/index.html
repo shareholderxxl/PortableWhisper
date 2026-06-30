@@ -1659,7 +1659,7 @@
                     const badge = document.createElement('span');
                     badge.className = 'status-indicator starting';
                     badge.style.cursor = 'default';
-                    badge.textContent = 'Lade herunter...';
+                    badge.textContent = statusInfo.status || 'Lade herunter...';
                     right.appendChild(badge);
                 } else {
                     const button = document.createElement('button');
@@ -1726,6 +1726,21 @@
                             clearInterval(intervalId);
                             delete activeDownloads[modelValue];
                             await checkDownloadedModels();
+                        } else if (data.is_loading) {
+                            // Update the UI with the actual backend download/loading text
+                            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
+                            const container = document.getElementById(`model-action-container-${cleanId}`);
+                            if (container) {
+                                let badge = container.querySelector('.status-indicator.starting');
+                                if (!badge) {
+                                    container.innerHTML = '';
+                                    badge = document.createElement('span');
+                                    badge.className = 'status-indicator starting';
+                                    badge.style.cursor = 'default';
+                                    container.appendChild(badge);
+                                }
+                                badge.textContent = data.status || 'Lade herunter...';
+                            }
                         } else if (!data.is_loading) {
                             console.warn(`⚠️ Model ${modelValue} stopped downloading without completion.`);
                             clearInterval(intervalId);

@@ -51,8 +51,8 @@ for _d in (MODELS_DIR, TEMP_DIR, LOGS_DIR, GPU_LIBS_DIR, CACHE_DIR):
 
 # HuggingFace-Cache umleiten — MUSS vor jedem HF-Import gesetzt sein.
 os.environ.setdefault("HF_HOME", str(MODELS_DIR))
-os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(MODELS_DIR / "hub"))
-os.environ.setdefault("TRANSFORMERS_CACHE", str(MODELS_DIR / "transformers"))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(MODELS_DIR))
+os.environ.setdefault("TRANSFORMERS_CACHE", str(MODELS_DIR))
 os.environ.setdefault("XDG_CACHE_HOME", str(CACHE_DIR))
 # Temp-Verzeichnis für Audio-Chunks ebenfalls umleiten
 os.environ.setdefault("TMPDIR", str(TEMP_DIR))

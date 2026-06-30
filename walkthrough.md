@@ -80,6 +80,15 @@ This document describes the fixes and enhancements applied to the Whisper4Window
 *   **File modified:** [lib.rs](file:///Y:/Austausch/whisper4windows-refactor/frontend/src-tauri/src/lib.rs)
     *   Added a secure `open_url` command that opens external links (like the original GitHub project page) safely in the user's default browser on Windows.
 
+### 12. Model Download Path & UI Polling Fixes
+*   **File modified:** [path_redirect.py](file:///Y:/Austausch/whisper4windows-refactor/backend/runtime_hooks/path_redirect.py)
+    *   Corrected Hugging Face cache directories (`HUGGINGFACE_HUB_CACHE`, `TRANSFORMERS_CACHE`) to point directly to `MODELS_DIR` instead of the `hub/` subdirectory.
+    *   **Why?** Previously, `faster-whisper` downloaded models into the `hub/` subdirectory, whereas the workflow bundle and `is_model_downloaded` checked the root `models/` directory. This created a path mismatch, preventing downloaded models from being recognized by the app.
+*   **File modified:** [whisper_engine.py](file:///Y:/Austausch/whisper4windows-refactor/backend/whisper_engine.py)
+    *   Modified `is_model_downloaded` to check both the direct `models/` root directory and the `models/hub/` subdirectory for backward compatibility with existing downloads.
+*   **File modified:** [index.html](file:///Y:/Austausch/whisper4windows-refactor/frontend/dist/index.html)
+    *   Updated the model status polling JavaScript routines to dynamically reflect the actual backend status text (e.g., "Downloading model...", "Loading model...") in the UI status badges instead of showing a static "Lade herunter..." label.
+
 ---
 
 ## Validation & Testing
@@ -105,3 +114,4 @@ Commit and push all changes in the `Y:\Austausch\whisper4windows-refactor` repos
 9. You can select between "Toggle" and "Push-to-Talk" under Keyboard Shortcuts in settings.
 10. The UI is clean, without unimplemented placeholder pages like "Vocabulary" or "History" or the static changelog.
 11. Click on "Original GitHub" in the settings to view the original repository by Bader Aljabri.
+12. Downloading models dynamically from the UI works flawlessly now, displaying detailed progress status in real-time.

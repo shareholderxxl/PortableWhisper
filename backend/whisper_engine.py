@@ -269,14 +269,20 @@ class WhisperEngine:
             model_size = self.model_size
 
         models_dir = get_models_dir()
-        model_path = models_dir / _model_cache_dir_name(model_size)
+        dir_name = _model_cache_dir_name(model_size)
 
-        # Check if model directory exists and has required files
-        if model_path.exists():
-            snapshot_dir = model_path / "snapshots"
-            if snapshot_dir.exists() and any(snapshot_dir.iterdir()):
-                logger.info(f"✅ Model '{model_size}' is already downloaded")
-                return True
+        # Check direct path and hub subdirectory path for compatibility
+        paths_to_check = [
+            models_dir / dir_name,
+            models_dir / "hub" / dir_name
+        ]
+
+        for model_path in paths_to_check:
+            if model_path.exists():
+                snapshot_dir = model_path / "snapshots"
+                if snapshot_dir.exists() and any(snapshot_dir.iterdir()):
+                    logger.info(f"✅ Model '{model_size}' is already downloaded ({model_path})")
+                    return True
 
         logger.warning(f"⚠️ Model '{model_size}' is not downloaded")
         return False
