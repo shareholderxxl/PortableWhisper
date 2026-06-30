@@ -27,10 +27,18 @@ import gpu_manager
 BACKEND_HOST = "127.0.0.1"  # localhost only — kein externer Zugriff
 BACKEND_PORT = 8765         # Sidecar-Port (Phase 1)
 
+import sys
+from runtime_hooks.path_redirect import get_logs_dir
+
 # Configure logging
+log_file = get_logs_dir() / "whisper-backend.log"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(log_file, encoding="utf-8", delay=True)
+    ]
 )
 logger = logging.getLogger(__name__)
 

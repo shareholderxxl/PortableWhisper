@@ -1745,7 +1745,23 @@
                             console.warn(`⚠️ Model ${modelValue} stopped downloading without completion.`);
                             clearInterval(intervalId);
                             delete activeDownloads[modelValue];
-                            await checkDownloadedModels();
+                            
+                            // Show failure indicator in UI
+                            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
+                            const container = document.getElementById(`model-action-container-${cleanId}`);
+                            if (container) {
+                                container.innerHTML = '';
+                                const badge = document.createElement('span');
+                                badge.className = 'status-indicator offline';
+                                badge.style.cursor = 'default';
+                                badge.textContent = 'Fehlgeschlagen';
+                                container.appendChild(badge);
+                            }
+                            
+                            // Reset back to normal button after 4 seconds
+                            setTimeout(async () => {
+                                await checkDownloadedModels();
+                            }, 4000);
                         }
                     }
                 } catch (e) {

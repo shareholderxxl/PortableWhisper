@@ -88,6 +88,12 @@ This document describes the fixes and enhancements applied to the Whisper4Window
     *   Modified `is_model_downloaded` to check both the direct `models/` root directory and the `models/hub/` subdirectory for backward compatibility with existing downloads.
 *   **File modified:** [index.html](file:///Y:/Austausch/whisper4windows-refactor/frontend/dist/index.html)
     *   Updated the model status polling JavaScript routines to dynamically reflect the actual backend status text (e.g., "Downloading model...", "Loading model...") in the UI status badges instead of showing a static "Lade herunter..." label.
+    *   Added visual error feedback to the UI. If a model download fails, the button temporarily switches to a red **Fehlgeschlagen** (Failed) badge before resetting, instead of failing silently.
+
+### 13. Backend File Logging for Debugging
+*   **File modified:** [main.py](file:///Y:/Austausch/whisper4windows-refactor/backend/main.py)
+    *   Configured the python logging system to write all logs and error tracebacks to `data/logs/whisper-backend.log`.
+    *   **Why?** Since the backend runs as a silent windowless sidecar, failures (such as download timeouts or network errors) were impossible to diagnose. Writing to a local log file allows users to view exact tracebacks.
 
 ---
 
@@ -114,4 +120,4 @@ Commit and push all changes in the `Y:\Austausch\whisper4windows-refactor` repos
 9. You can select between "Toggle" and "Push-to-Talk" under Keyboard Shortcuts in settings.
 10. The UI is clean, without unimplemented placeholder pages like "Vocabulary" or "History" or the static changelog.
 11. Click on "Original GitHub" in the settings to view the original repository by Bader Aljabri.
-12. Downloading models dynamically from the UI works flawlessly now, displaying detailed progress status in real-time.
+12. Downloading models dynamically from the UI works flawlessly now, displaying detailed progress status in real-time, and will write detailed diagnostics to `data/logs/whisper-backend.log` if an issue occurs.
