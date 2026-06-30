@@ -150,9 +150,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
           New-Item -ItemType Directory -Force -Path "$stage/data/models" | Out-Null
 
-          # Pre-download the default 'tiny' model into the portable bundle
+          # Pre-download the default 'tiny' model into the portable bundle.
+          # Als externe .py-Datei + CLI-Arg (robuster als inline python -c,
+          # bei dem PowerShell die Quotes/Klammern falsch parsed).
           Write-Host "📥 Pre-downloading default 'tiny' model into portable data folder..."
-          python -c "from faster_whisper import WhisperModel; WhisperModel('tiny', download_root='$stage/data/models')"
+          @'
+import sys
+from faster_whisper import WhisperModel
+WhisperModel("tiny", download_root=sys.argv[1])
+'@ | Set-Content -Path _predl_tiny.py
+          python _predl_tiny.py "$stage/data/models"
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
           # Whisper4Windows.exe in das ZIP legen.
