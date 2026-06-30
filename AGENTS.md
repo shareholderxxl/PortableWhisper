@@ -60,9 +60,11 @@ repo and must be adapted.
 `frontend/src-tauri/src/lib.rs` already spawns the `whisper-backend` sidecar
 (see `lib.rs:975` and the restart logic at `lib.rs:1123`). Registered in
 `tauri.conf.json` via `bundle.externalBin: ["binaries/whisper-backend"]`.
-Don't reinvent — extend in place. Open Phase-1 gaps: clean `child.kill()` on
-app close and the `plugins.shell.scope` sidecar entry in
-`capabilities/default.json`.
+Don't reinvent — extend in place. Sidecar permission is granted in
+`capabilities/default.json` as structured `shell:allow-spawn`/`allow-execute`
+entries (NOT via `plugins.shell.scope` in tauri.conf.json — that field is
+invalid in Tauri 2 and crashes startup with "unknown field scope"). A global
+`RunEvent::Exit` handler in `lib.rs` kills the backend on any exit path.
 
 ## No test / lint / format tooling
 
@@ -104,7 +106,9 @@ Phase 1 (Zero-Dependency & Portability) is **in implementation** on branch
 - File paths route to `%LOCALAPPDATA%/Whisper4Windows/{models,temp,logs}` via
   `backend/runtime_hooks/path_redirect.py` (imported first in `main.py`).
 - Sidecar lifecycle: global `RunEvent::Exit` handler kills the backend on any
-  exit path (`lib.rs`); sidecar scope registered in `tauri.conf.json`.
+  exit path (`lib.rs`); sidecar permission via structured entries in
+  `capabilities/default.json` (`shell:allow-spawn`/`allow-execute`). The
+  `plugins.shell.scope` field in `tauri.conf.json` is INVALID in Tauri 2.
 
 ## Key docs
 
