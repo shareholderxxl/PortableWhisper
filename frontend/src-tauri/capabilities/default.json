@@ -10,7 +10,25 @@
     "core:window:allow-set-focus",
     "core:window:allow-center",
     "core:window:allow-is-visible",
-    "shell:allow-execute",
-    "shell:allow-spawn"
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/whisper-backend",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/whisper-backend",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }

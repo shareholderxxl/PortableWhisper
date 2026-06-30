@@ -36,15 +36,7 @@
     }
   },
   "plugins": {
-    "shell": {
-      "scope": [
-        {
-          "name": "binaries/whisper-backend",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    }
+    "shell": {}
   },
   "bundle": {
     "active": true,
