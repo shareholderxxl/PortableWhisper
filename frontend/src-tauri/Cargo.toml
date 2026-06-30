@@ -29,6 +29,11 @@ tauri-plugin-single-instance = "2"
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
+# Pin: time 0.3.52 hat die parse()-Signatur auf 2 Argumente geaendert und ist
+# damit inkompatibel zu cookie 0.18.1 (transitiv ueber den reqwest 0.11-Baum).
+# Ohne Cargo.lock wuerde der Resolver bei jedem Build die neueste (kaputte)
+# time-Version ziehen. Pin kann entfallen, sobald reqwest auf >=0.12 gehoben wird.
+time = "<0.3.52"
 
 [dependencies.windows]
 version = "0.52"
