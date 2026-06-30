@@ -50,6 +50,7 @@ This document describes the fixes and enhancements applied to the Whisper4Window
     *   **Default Selected Model:** Changed the default selected model on startup from `small` to `tiny` to match the bundled offline model.
 *   **File modified:** [.github/workflows/build-windows.yml](file:///Y:/Austausch/whisper4windows-refactor/.github/workflows/build-windows.yml)
     *   **Offline Default Model:** Updated the portable ZIP packaging steps to pre-download the lightweight `tiny` model weight files (approx. 75MB) directly into the portable bundle (`data/models/hub/...`). This ensures the application works immediately out-of-the-box in offline environments without requiring any downloads, while keeping the ZIP file size very small.
+    *   **Parser & Encoding Fix:** Cleaned up the comments and quote nesting within the `Assemble portable ZIP` step to prevent PowerShell parser syntax issues (`TerminatorExpectedAtEndOfString`) under different execution environments on GitHub runners.
 
 ### 8. Removed "Launch on Startup" Configuration Option
 *   **File modified:** [index.html](file:///Y:/Austausch/whisper4windows-refactor/frontend/dist/index.html)

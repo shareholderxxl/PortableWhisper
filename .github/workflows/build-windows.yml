@@ -8,7 +8,7 @@ name: Build Windows Portable
 #   4. Portables ZIP zusammenstellen (.exe + binaries/ + Doku)
 #   5. Als Artifact hochladen; bei Tags zusaetzlich als GitHub Release
 #
-# WICHTIG: Kein npm/Node-Schritt — das Frontend ist statisches HTML in
+# WICHTIG: Kein npm/Node-Schritt - das Frontend ist statisches HTML in
 # frontend/dist/ (bereits eingecheckt, beforeBuildCommand ist leer).
 
 on:
@@ -36,7 +36,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # Windows Defender auf den Runnern quarantänt frisch gebaute
+      # Windows Defender auf den Runnern quarantaent frisch gebaute
       # PyInstaller-Onefile-Exes (False Positive). Workspace freigeben.
       - name: Exclude workspace from Defender
         run: |
@@ -150,12 +150,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
           New-Item -ItemType Directory -Force -Path "$stage/data/models" | Out-Null
 
-          # Pre-download the default 'tiny' model into the portable bundle.
-          # Einzeiler als single-quoted PS-String (innere Double-Quotes bleiben
-          # literal), Pfad als argv[1] — kein Here-String (dessen '@ an Spalte 1
-          # wuerde die YAML-Einrueckung brechen).
-          Write-Host "📥 Pre-downloading default 'tiny' model into portable data folder..."
-          python -c 'import sys; from faster_whisper import WhisperModel; WhisperModel("tiny", download_root=sys.argv[1])' "$stage/data/models"
+          # Pre-download default tiny model: write helper .py line by line
+          # via Set/Add-Content. Avoids python -c inline quoting pitfalls
+          # under Windows PowerShell 5.1.
+          Set-Content -Path _predl_tiny.py -Value "import sys"
+          Add-Content -Path _predl_tiny.py -Value "from faster_whisper import WhisperModel"
+          Add-Content -Path _predl_tiny.py -Value "WhisperModel('tiny', download_root=sys.argv[1])"
+          Write-Host "Pre-downloading default tiny model into portable data folder..."
+          python _predl_tiny.py "$stage/data/models"
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
           # Whisper4Windows.exe in das ZIP legen.
