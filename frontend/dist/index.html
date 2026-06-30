@@ -676,10 +676,7 @@
             <span class="sidebar-item-icon">🏠</span>
             Home
         </div>
-        <div class="sidebar-item" onclick="navigateToPage('vocabulary')">
-            <span class="sidebar-item-icon">📖</span>
-            Vocabulary
-        </div>
+
         <div class="sidebar-item" onclick="navigateToPage('configuration')">
             <span class="sidebar-item-icon">⚙️</span>
             Configuration
@@ -688,10 +685,7 @@
             <span class="sidebar-item-icon">🔊</span>
             Sound
         </div>
-        <div class="sidebar-item" onclick="navigateToPage('history')">
-            <span class="sidebar-item-icon">🕐</span>
-            History
-        </div>
+
     </div>
 
     <!-- Main Content -->
@@ -718,45 +712,13 @@
                     </div>
                 </div>
 
-                <div class="card" onclick="navigateToPage('vocabulary')">
-                    <span class="card-icon">📖</span>
-                    <div class="card-content">
-                        <div class="card-title">Add vocabulary</div>
-                        <div class="card-description">Teach Whisper4Windows custom words, names, or industry terms.</div>
-                    </div>
-                </div>
+
             </div>
 
-            <div class="whats-new-header">
-                <h2>What's new?</h2>
-                <a href="#" class="view-all-link">View all changes</a>
-            </div>
 
-            <div class="changelog-item">
-                <div class="changelog-date">Nov 10, 2025</div>
-                <div class="changelog-title">99 Language Support & Auto-Detection</div>
-                <div class="changelog-description">
-                    Whisper4Windows now supports transcription in 99 languages including English, Spanish, French, German, Chinese, Japanese, Arabic, and many more. Auto-detection intelligently identifies the spoken language, or manually select your preferred language for optimal accuracy.
-                </div>
-            </div>
-
-            <div class="changelog-item">
-                <div class="changelog-date">OCT 20, 2025</div>
-                <div class="changelog-title">GPU Acceleration & Fast Text Injection</div>
-                <div class="changelog-description">
-                    10x faster transcription with NVIDIA GPU support. Text now injects instantly via clipboard paste instead of character-by-character. Customizable global shortcuts let you control recording from anywhere.
-                </div>
-            </div>
         </div>
 
-        <!-- VOCABULARY PAGE -->
-        <div id="page-vocabulary" class="page hidden">
-            <h1 class="section-title">Vocabulary</h1>
-            <div class="coming-soon">
-                <h3>🚧 Coming Soon</h3>
-                <p>Custom vocabulary feature is under development. You'll soon be able to teach Whisper4Windows custom words, names, and industry-specific terms.</p>
-            </div>
-        </div>
+
 
         <!-- CONFIGURATION PAGE -->
         <div id="page-configuration" class="page hidden">
@@ -790,12 +752,14 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
-                        <div class="config-row-title">Switch Mode</div>
-                        <div class="config-row-description">Activates the mode switcher</div>
+                        <div class="config-row-title">Recording Mode</div>
+                        <div class="config-row-description">Diktier-Modus: Click-to-Toggle oder Push-to-Talk</div>
                     </div>
                     <div class="config-row-right">
-                        <span class="reset-icon" style="opacity: 0.3;">↻</span>
-                        <div class="shortcut-badge disabled">—</div>
+                        <div class="device-buttons">
+                            <button class="device-btn active" id="modeToggle" onclick="selectRecordingMode('toggle')">Toggle</button>
+                            <button class="device-btn" id="modePTT" onclick="selectRecordingMode('ptt')">Push-To-Talk</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -889,6 +853,18 @@
                 </div>
             </div>
 
+            <!-- Model Management Section -->
+            <div class="config-section" id="section-model-management">
+                <h3 class="config-section-title">Model Management</h3>
+                <div class="config-row-description" style="margin: 5px 0 15px 0; font-size: 13px; color: var(--text-secondary);">
+                    Hier kannst du zusätzliche KI-Modelle herunterladen. Heruntergeladene Modelle erscheinen oben in der Auswahl für die Modellqualität.
+                </div>
+                
+                <div id="model-list-container">
+                    <!-- Wird dynamisch per JS geladen -->
+                </div>
+            </div>
+
             <!-- Appearance Section -->
             <div class="config-section">
                 <h3 class="config-section-title">Appearance</h3>
@@ -925,15 +901,32 @@
                     </div>
                 </div>
 
-                <div class="config-row">
-                    <div class="config-row-left">
-                        <div class="config-row-title">Launch on Startup</div>
-                        <div class="config-row-description">Start Whisper4Windows with Windows</div>
+                <!-- About Section -->
+                <div class="config-section" style="margin-top: 30px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                    <h3 class="config-section-title">About</h3>
+
+                    <div class="config-row">
+                        <div class="config-row-left">
+                            <div class="config-row-title">Whisper4Windows</div>
+                            <div class="config-row-description">Lokales Speech-to-Text-Tool für Windows.</div>
+                        </div>
+                        <div class="config-row-right">
+                            <span style="font-size: 0.9rem; color: var(--text-secondary); margin-right: 8px;">v0.1.0</span>
+                        </div>
                     </div>
-                    <div class="config-row-right">
-                        <div class="toggle-switch" id="launchOnStartupToggle" onclick="toggleLaunchOnStartup()"></div>
+
+                    <div class="config-row">
+                        <div class="config-row-left">
+                            <div class="config-row-title">License & Fork Attribution</div>
+                            <div class="config-row-description">Released under MIT License. Forked from the original project by Bader Aljabri.</div>
+                        </div>
+                        <div class="config-row-right">
+                            <button class="btn" onclick="openOriginalGitHub()">Original GitHub</button>
+                        </div>
                     </div>
                 </div>
+
+
             </div>
         </div>
 
@@ -999,14 +992,7 @@
             </div>
         </div>
 
-        <!-- HISTORY PAGE -->
-        <div id="page-history" class="page hidden">
-            <h1 class="section-title">History</h1>
-            <div class="coming-soon">
-                <h3>🚧 Coming Soon</h3>
-                <p>Recording history feature is under development. You'll soon be able to view and manage past transcriptions.</p>
-            </div>
-        </div>
+
     </div>
 
     <!-- Shortcut Capture Modal -->
@@ -1579,35 +1565,224 @@
             }
         }
 
-        // Model dropdown data
-        const MODELS = [
-            { value: 'tiny', name: 'Tiny (Fastest)' },
-            { value: 'base', name: 'Base' },
-            { value: 'small', name: 'Small (Recommended)' },
-            { value: 'medium', name: 'Medium' },
-            { value: 'large-v3', name: 'Large V3' },
-            { value: 'large-v3-turbo', name: 'Large V3 Turbo (Best)' }
+        // Model dropdown data with metadata
+        const MODELS_METADATA = [
+            { value: 'tiny', name: 'Tiny (Fastest)', size: '75 MB', desc: 'Schnellste Erkennung, geringere Genauigkeit. Ideal zum Testen.' },
+            { value: 'base', name: 'Base', size: '140 MB', desc: 'Sehr schnell, solide Standard-Erkennung.' },
+            { value: 'small', name: 'Small (Recommended)', size: '460 MB', desc: 'Der Standard-Sweetspot aus Geschwindigkeit und Genauigkeit.' },
+            { value: 'medium', name: 'Medium', size: '1.5 GB', desc: 'Hohe Qualität, braucht stärkere Hardware.' },
+            { value: 'large-v3', name: 'Large V3', size: '3.0 GB', desc: 'Maximale Qualität für anspruchsvolle Erkennungen. GPU empfohlen.' },
+            { value: 'large-v3-turbo', name: 'Large V3 Turbo (Best)', size: '1.6 GB', desc: 'Hervorragende Kombination aus Large-Genauigkeit und viel höherem Tempo.' },
+            { value: 'mkenfenheuer/whisper-medium-cv11-german-ct2', name: 'Medium German (Fine-tuned)', size: '1.5 GB', desc: 'Speziell auf Deutsch trainiertes Medium-Modell (ausgewogener Ressourcenbedarf).' },
+            { value: 'Reality-Interface/whisper-large-v3-german-faster-whisper', name: 'Large V3 German (Fine-tuned)', size: '3.0 GB', desc: 'Die allerbeste Erkennungsgenauigkeit für deutsches Diktat. GPU empfohlen.' }
         ];
 
-        let selectedModelValue = 'small';
+        let selectedModelValue = 'tiny';
+        let downloadedModels = new Set();
+        let activeDownloads = {}; // modelValue -> intervalId
 
-        function initializeModelDropdown() {
-            const optionsContainer = document.getElementById('modelOptions');
-            optionsContainer.innerHTML = '';
+        async function checkDownloadedModels() {
+            console.log('🔍 Checking downloaded models...');
+            downloadedModels.clear();
+            
+            const statusPromises = MODELS_METADATA.map(async (model) => {
+                try {
+                    const response = await fetch(`${BACKEND_URL}/model/status?model_size=${model.value}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.is_downloaded) {
+                            downloadedModels.add(model.value);
+                        }
+                        return { value: model.value, is_downloaded: data.is_downloaded, is_loading: data.is_loading, status: data.status };
+                    }
+                } catch (e) {
+                    console.error(`Failed to check status for model ${model.value}:`, e);
+                }
+                return { value: model.value, is_downloaded: false, is_loading: false };
+            });
 
-            MODELS.forEach(model => {
-                const option = document.createElement('div');
-                option.className = 'dropdown-option';
-                option.textContent = model.name;
-                option.dataset.value = model.value;
+            const results = await Promise.all(statusPromises);
+            
+            // Render Model Management List
+            renderModelManagementList(results);
 
-                if (model.value === selectedModelValue) {
-                    option.classList.add('selected');
+            // Trigger polling for any model currently loading/downloading
+            results.forEach(res => {
+                if (res.is_loading && !activeDownloads[res.value]) {
+                    startModelPolling(res.value);
+                }
+            });
+
+            // Update main Model Quality Dropdown
+            updateModelQualityDropdown();
+        }
+
+        function renderModelManagementList(results) {
+            const container = document.getElementById('model-list-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            MODELS_METADATA.forEach(model => {
+                const statusInfo = results.find(r => r.value === model.value) || { is_downloaded: false, is_loading: false };
+                
+                const row = document.createElement('div');
+                row.className = 'model-manage-row';
+                row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; margin-bottom: 10px;';
+
+                const left = document.createElement('div');
+                left.style.cssText = 'display: flex; flex-direction: column; gap: 4px; flex: 1; margin-right: 15px; text-align: left;';
+                
+                const title = document.createElement('span');
+                title.style.cssText = 'font-weight: 600; font-size: 14px; color: var(--text-main);';
+                title.textContent = model.name;
+
+                const desc = document.createElement('span');
+                desc.style.cssText = 'font-size: 12px; color: var(--text-secondary);';
+                desc.textContent = `${model.desc} • Größe: ${model.size}`;
+
+                left.appendChild(title);
+                left.appendChild(desc);
+                row.appendChild(left);
+
+                const right = document.createElement('div');
+                const cleanId = model.value.replace(/[^a-zA-Z0-9]/g, '-');
+                right.id = `model-action-container-${cleanId}`;
+
+                if (statusInfo.is_downloaded) {
+                    const badge = document.createElement('span');
+                    badge.className = 'status-indicator';
+                    badge.style.cursor = 'default';
+                    badge.textContent = 'Bereit';
+                    right.appendChild(badge);
+                } else if (statusInfo.is_loading || activeDownloads[model.value]) {
+                    const badge = document.createElement('span');
+                    badge.className = 'status-indicator starting';
+                    badge.style.cursor = 'default';
+                    badge.textContent = 'Lade herunter...';
+                    right.appendChild(badge);
+                } else {
+                    const button = document.createElement('button');
+                    button.className = 'btn';
+                    button.style.padding = '6px 12px';
+                    button.style.fontSize = '12px';
+                    button.textContent = 'Herunterladen';
+                    button.onclick = () => startModelDownload(model.value);
+                    right.appendChild(button);
                 }
 
-                option.onclick = () => selectModel(model.value, model.name);
-                optionsContainer.appendChild(option);
+                row.appendChild(right);
+                container.appendChild(row);
             });
+        }
+
+        async function startModelDownload(modelValue) {
+            console.log(`📥 Triggering download for model: ${modelValue}`);
+            
+            // Show loading status in UI instantly
+            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
+            const container = document.getElementById(`model-action-container-${cleanId}`);
+            if (container) {
+                container.innerHTML = '';
+                const badge = document.createElement('span');
+                badge.className = 'status-indicator starting';
+                badge.style.cursor = 'default';
+                badge.textContent = 'Lade herunter...';
+                container.appendChild(badge);
+            }
+
+            // Start polling backend status
+            startModelPolling(modelValue);
+
+            // Call load_model endpoint in backend asynchronously (fire-and-forget)
+            try {
+                const device = selectedDeviceValue || 'auto';
+                fetch(`${BACKEND_URL}/load_model`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_size: modelValue,
+                        device: device,
+                        language: null
+                    })
+                }).catch(err => {
+                    console.error('Error triggering download:', err);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function startModelPolling(modelValue) {
+            if (activeDownloads[modelValue]) return;
+
+            const intervalId = setInterval(async () => {
+                try {
+                    const response = await fetch(`${BACKEND_URL}/model/status?model_size=${modelValue}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.is_downloaded) {
+                            console.log(`✅ Model ${modelValue} downloaded!`);
+                            clearInterval(intervalId);
+                            delete activeDownloads[modelValue];
+                            await checkDownloadedModels();
+                        } else if (!data.is_loading) {
+                            console.warn(`⚠️ Model ${modelValue} stopped downloading without completion.`);
+                            clearInterval(intervalId);
+                            delete activeDownloads[modelValue];
+                            await checkDownloadedModels();
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Error polling status for model ${modelValue}:`, e);
+                }
+            }, 1500);
+
+            activeDownloads[modelValue] = intervalId;
+        }
+
+        function updateModelQualityDropdown() {
+            // Only allow selection of downloaded models. Default "tiny" is always available.
+            const availableList = MODELS_METADATA.filter(m => downloadedModels.has(m.value) || m.value === 'tiny');
+            
+            // Check if selected model is still available
+            if (!downloadedModels.has(selectedModelValue) && selectedModelValue !== 'tiny') {
+                console.warn(`Selected model ${selectedModelValue} is not downloaded. Reverting to tiny.`);
+                selectedModelValue = 'tiny';
+                const defaultModelObj = MODELS_METADATA.find(m => m.value === 'tiny');
+                document.getElementById('selectedModel').textContent = defaultModelObj ? defaultModelObj.name : 'Tiny (Fastest)';
+                
+                // Persist fallback selection to Rust backend
+                const { invoke } = window.__TAURI_INTERNALS__;
+                invoke('set_model_and_device', { 
+                    model: 'tiny', 
+                    device: selectedDeviceValue 
+                });
+            }
+
+            // Re-render dropdown list options
+            const optionsContainer = document.getElementById('modelOptions');
+            if (optionsContainer) {
+                optionsContainer.innerHTML = '';
+                availableList.forEach(model => {
+                    const option = document.createElement('div');
+                    option.className = 'dropdown-option';
+                    option.textContent = model.name;
+                    option.dataset.value = model.value;
+
+                    if (model.value === selectedModelValue) {
+                        option.classList.add('selected');
+                    }
+
+                    option.onclick = () => selectModel(model.value, model.name);
+                    optionsContainer.appendChild(option);
+                });
+            }
+        }
+
+        function initializeModelDropdown() {
+            // Initial render, checks status asynchronously
+            updateModelQualityDropdown();
         }
 
         function toggleModelDropdown() {
@@ -1640,7 +1815,7 @@
         // Sync model from Rust (called when other window changes it)
         window.syncModelFromRust = function(modelValue) {
             console.log('🔄 Syncing model from Rust:', modelValue);
-            const model = MODELS.find(m => m.value === modelValue);
+            const model = MODELS_METADATA.find(m => m.value === modelValue);
             if (model) {
                 selectedModelValue = modelValue;
                 document.getElementById('selectedModel').textContent = model.name;
@@ -1708,6 +1883,40 @@
             content.classList.remove('show');
 
             changeTheme();
+        }
+
+        // Recording Mode settings
+        let selectedRecordingModeValue = 'toggle';
+
+        async function selectRecordingMode(mode) {
+            selectedRecordingModeValue = mode;
+            document.querySelectorAll('#modeToggle, #modePTT').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (mode === 'ptt') {
+                const btn = document.getElementById('modePTT');
+                if (btn) btn.classList.add('active');
+            } else {
+                const btn = document.getElementById('modeToggle');
+                if (btn) btn.classList.add('active');
+            }
+
+            try {
+                const { invoke } = window.__TAURI_INTERNALS__;
+                await invoke('set_recording_mode', { mode });
+                console.log('✅ Recording mode saved:', mode);
+            } catch (error) {
+                console.error('❌ Error saving recording mode:', error);
+            }
+        }
+
+        async function openOriginalGitHub() {
+            try {
+                const { invoke } = window.__TAURI_INTERNALS__;
+                await invoke('open_url', { url: 'https://github.com/baderaljabri/whisper4windows' });
+            } catch (error) {
+                console.error('❌ Error opening original GitHub link:', error);
+            }
         }
 
         // Microphone dropdown
@@ -1952,8 +2161,9 @@
 
                     if (response.ok) {
                         console.log('✅ Backend is ready');
-                        // Backend is ready, now check GPU
+                        // Backend is ready, now check GPU and check downloaded models
                         await checkGPUSetup();
+                        await checkDownloadedModels();
                         return;
                     }
                 } catch (error) {
@@ -2099,6 +2309,24 @@
                 }
             } catch (error) {
                 console.error('❌ Error loading model/device from state:', error);
+            }
+
+            // Load saved recording mode
+            try {
+                const { invoke } = window.__TAURI_INTERNALS__;
+                const recordingMode = await invoke('get_recording_mode');
+                console.log('📥 Loaded recording mode from state:', recordingMode);
+                selectedRecordingModeValue = recordingMode;
+                document.querySelectorAll('#modeToggle, #modePTT').forEach(btn => btn.classList.remove('active'));
+                if (recordingMode === 'ptt') {
+                    const btn = document.getElementById('modePTT');
+                    if (btn) btn.classList.add('active');
+                } else {
+                    const btn = document.getElementById('modeToggle');
+                    if (btn) btn.classList.add('active');
+                }
+            } catch (error) {
+                console.error('❌ Error loading recording mode:', error);
             }
 
             // Start real-time backend health polling

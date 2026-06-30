@@ -22,19 +22,17 @@ APP_NAME = "Whisper4Windows"
 
 
 def get_appdata_dir() -> Path:
-    """Ermittelt das lokale App-Datenverzeichnis des Benutzers."""
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA")
-        if not base:
-            userprofile = os.environ.get("USERPROFILE")
-            if userprofile:
-                base = os.path.join(userprofile, "AppData", "Local")
-            else:
-                base = os.path.expanduser("~")
+    """Ermittelt das Datenverzeichnis im portablen App-Ordner."""
+    if getattr(sys, "frozen", False):
+        # Im portablen Modus liegt das Backend in: <App_Root>/binaries/whisper-backend.exe
+        # Das Hauptverzeichnis liegt somit zwei Ebenen darüber.
+        app_root = Path(sys.executable).parent.parent
     else:
-        base = os.path.join(os.environ.get("HOME", os.path.expanduser("~")),
-                            ".local", "share")
-    return Path(base) / APP_NAME
+        # Im Entwicklungsmodus liegt das Skript in: <App_Root>/backend/runtime_hooks/path_redirect.py
+        # Das Hauptverzeichnis liegt somit drei Ebenen darüber.
+        app_root = Path(__file__).parent.parent.parent
+    
+    return app_root / "data"
 
 
 # Basisverzeichnis
