@@ -19,6 +19,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Nur den neuesten Build pro Branch laufen lassen; aeltere laufende Builds
+# bei neuem Push abbrechen (verhindert redundante Laufe nach Docs-Pushes).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -28,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Windows Defender auf den Runnern quarantänt frisch gebaute
       # PyInstaller-Onefile-Exes (False Positive). Workspace freigeben.
@@ -45,7 +51,7 @@ jobs:
       # 1. Python-Backend bauen (PyInstaller, ohne torch)
       # ============================================================
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -130,11 +136,16 @@ jobs:
         run: |
           $stage = "${{ runner.temp }}/portable"
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/data/models" | Out-Null
+
+          # Pre-download the default 'tiny' model into the portable bundle
+          Write-Host "📥 Pre-downloading default 'tiny' model into portable data folder..."
+          python -c "from faster_whisper import WhisperModel; WhisperModel('tiny', download_root='$stage/data/models')"
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
           # Whisper4Windows.exe in das ZIP legen.
           Copy-Item frontend/src-tauri/target/release/app.exe "$stage/Whisper4Windows.exe"
-          Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe $stage/binaries/
+          Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe "$stage/binaries/whisper-backend.exe"
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
 
@@ -155,7 +166,7 @@ jobs:
       # 5. Artifact + (bei Tags) GitHub Release
       # ============================================================
       - name: Upload portable ZIP artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Whisper4Windows-portable
           path: ${{ env.ZIP_PATH }}

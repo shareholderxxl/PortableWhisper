@@ -32,18 +32,20 @@ pub struct Settings {
     pub selected_language: String,
     pub toggle_shortcut: String,
     pub cancel_shortcut: String,
+    pub recording_mode: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            selected_model: "small".to_string(),
+            selected_model: "tiny".to_string(),
             selected_device: "auto".to_string(),
             selected_microphone: None,
             use_clipboard: true,
             selected_language: "auto".to_string(),
             toggle_shortcut: "Ctrl+\\".to_string(),
             cancel_shortcut: "Escape".to_string(),
+            recording_mode: "toggle".to_string(),
         }
     }
 }
@@ -59,13 +61,15 @@ pub struct AppState {
     pub toggle_shortcut: Arc<Mutex<String>>,  // Toggle recording shortcut
     pub cancel_shortcut: Arc<Mutex<String>>,  // Cancel recording shortcut
     pub backend_child: Arc<Mutex<Option<tauri_plugin_shell::process::CommandChild>>>,  // Backend process handle
+    pub is_processing: Arc<Mutex<bool>>,  // Track if we are transcribing
+    pub recording_mode: Arc<Mutex<String>>,  // Toggle vs Push-to-Talk
     pub settings_path: PathBuf,  // Path to settings file
 }
 
 impl AppState {
     fn new(settings_path: PathBuf) -> Self {
         Self {
-            selected_model: Arc::new(Mutex::new("small".to_string())),
+            selected_model: Arc::new(Mutex::new("tiny".to_string())),
             selected_device: Arc::new(Mutex::new("auto".to_string())),
             selected_microphone: Arc::new(Mutex::new(None)),
             use_clipboard: Arc::new(Mutex::new(true)),
@@ -73,6 +77,8 @@ impl AppState {
             toggle_shortcut: Arc::new(Mutex::new("F9".to_string())),
             cancel_shortcut: Arc::new(Mutex::new("Escape".to_string())),
             backend_child: Arc::new(Mutex::new(None)),
+            is_processing: Arc::new(Mutex::new(false)),
+            recording_mode: Arc::new(Mutex::new("toggle".to_string())),
             settings_path,
         }
     }
@@ -107,6 +113,7 @@ impl AppState {
             selected_language: self.selected_language.lock().await.clone(),
             toggle_shortcut: self.toggle_shortcut.lock().await.clone(),
             cancel_shortcut: self.cancel_shortcut.lock().await.clone(),
+            recording_mode: self.recording_mode.lock().await.clone(),
         };
 
         if let Ok(json) = serde_json::to_string_pretty(&settings) {
@@ -126,6 +133,7 @@ impl AppState {
         *self.selected_language.lock().await = settings.selected_language;
         *self.toggle_shortcut.lock().await = settings.toggle_shortcut;
         *self.cancel_shortcut.lock().await = settings.cancel_shortcut;
+        *self.recording_mode.lock().await = settings.recording_mode;
     }
 }
 
@@ -395,11 +403,27 @@ async fn cmd_stop_recording(app: AppHandle, state: State<'_, AppState>) -> Resul
     log::info!("🛑 STOP RECORDING");
     log::info!("═══════════════════════════════════════════════");
 
-    // Call showProcessing() in the recording window via eval
+    // Set processing state to true
+    {
+        let mut is_proc = state.is_processing.lock().await;
+        *is_proc = true;
+    }
+
+    // Hide window FIRST (to restore focus to text field immediately!)
     if let Some(win) = app.get_webview_window("recording") {
         let _ = win.eval("showProcessing()");
         let _ = win.eval("playStopSound()");
         log::info!("📢 Called showProcessing() in frontend");
+        
+        if let Err(e) = win.hide() {
+            log::error!("❌ Failed to hide recording window: {}", e);
+            {
+                let mut is_proc = state.is_processing.lock().await;
+                *is_proc = false;
+            }
+            return Err(e.to_string());
+        }
+        log::info!("✅ Window hidden immediately");
     }
 
     // Small delay to let frontend update UI
@@ -436,16 +460,10 @@ async fn cmd_stop_recording(app: AppHandle, state: State<'_, AppState>) -> Resul
         }
     };
 
-    // Hide window FIRST (to restore focus to text field)
-    if let Some(win) = app.get_webview_window("recording") {
-        win.hide().map_err(|e| e.to_string())?;
-        log::info!("✅ Window hidden");
-    }
-
-    // Wait for focus to return to the text field
+    // Wait for focus to return to the text field (if not already returned)
     tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
 
-    // THEN inject text (always inject, clipboard setting controls if we save to clipboard)
+    // THEN inject text (always inject, clipboard setting controls how to inject)
     if let Some(text) = text_to_inject {
         let save_to_clipboard = *state.use_clipboard.lock().await;
         log::info!("🔧 Clipboard save setting: {}", save_to_clipboard);
@@ -457,6 +475,12 @@ async fn cmd_stop_recording(app: AppHandle, state: State<'_, AppState>) -> Resul
         }
     }
 
+    // Reset processing state to false
+    {
+        let mut is_proc = state.is_processing.lock().await;
+        *is_proc = false;
+    }
+
     Ok(())
 }
 
@@ -464,6 +488,15 @@ async fn cmd_stop_recording(app: AppHandle, state: State<'_, AppState>) -> Resul
 #[tauri::command]
 async fn cmd_toggle_recording(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     log::info!("⌨️ F9 PRESSED");
+
+    // Check if we are currently transcribing/processing
+    {
+        let is_processing = state.is_processing.lock().await;
+        if *is_processing {
+            log::info!("   Already processing/transcribing, ignoring toggle request");
+            return Ok(());
+        }
+    }
 
     if let Some(win) = app.get_webview_window("recording") {
         let is_visible = win.is_visible().unwrap_or(false);
@@ -604,6 +637,32 @@ async fn set_language(language: String, state: State<'_, AppState>) -> Result<()
 #[tauri::command]
 async fn get_language(state: State<'_, AppState>) -> Result<String, String> {
     Ok(state.selected_language.lock().await.clone())
+}
+
+// Recording mode commands
+#[tauri::command]
+async fn get_recording_mode(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state.recording_mode.lock().await.clone())
+}
+
+#[tauri::command]
+async fn set_recording_mode(mode: String, state: State<'_, AppState>) -> Result<(), String> {
+    *state.recording_mode.lock().await = mode.clone();
+    log::info!("⚙️ Recording mode set to: {}", mode);
+    state.save_settings().await;
+    Ok(())
+}
+
+// Open URL in default browser (Windows command helper)
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    log::info!("🔗 Opening URL: {}", url);
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let _ = std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn();
+    }
+    Ok(())
 }
 
 // Helper function to parse shortcut string to Shortcut object
@@ -929,7 +988,7 @@ async fn set_launch_on_startup(enabled: bool) -> Result<(), String> {
             }
         } else {
             // Delete registry value (ignore error if value doesn't exist)
-            let delete_result = RegDeleteValueW(
+            let _ = RegDeleteValueW(
                 hkey,
                 PCWSTR::from_raw(app_name_wide.as_ptr()),
             );
@@ -1067,6 +1126,7 @@ pub fn run() {
             log::info!("🔒 Single instance check - app already running, focusing existing window");
             // Bring main window to front if already running
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
                 let _ = window.set_focus();
             }
         }))
@@ -1084,14 +1144,18 @@ pub fn run() {
 
             log::info!("🚀 Whisper4Windows starting...");
 
-            // Initialize app state with settings path
-            let app_data_dir = app.path().app_data_dir()
-                .expect("Failed to get app data directory");
+            // Initialize app state with settings path in local "data" directory next to the executable
+            let exe_dir = std::env::current_exe()
+                .expect("Failed to get executable path")
+                .parent()
+                .expect("Failed to get executable directory")
+                .to_path_buf();
+            let app_data_dir = exe_dir.join("data");
 
-            // Create app data directory if it doesn't exist
+            // Create local data directory if it doesn't exist
             if !app_data_dir.exists() {
                 fs::create_dir_all(&app_data_dir)
-                    .expect("Failed to create app data directory");
+                    .expect("Failed to create local data directory");
             }
 
             let settings_path = app_data_dir.join("settings.json");
@@ -1188,17 +1252,20 @@ pub fn run() {
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |_app, shortcut, event| {
                         use tauri_plugin_global_shortcut::ShortcutState;
-                        // Only trigger on key press, not release
-                        if event.state == ShortcutState::Pressed {
-                            let app_clone = app_handle_hotkey.clone();
-                            let shortcut_str = format!("{:?}", shortcut); // Format outside async block
+                        let is_pressed = event.state == ShortcutState::Pressed;
+                        let is_released = event.state == ShortcutState::Released;
 
-                            tauri::async_runtime::spawn(async move {
-                                let state: tauri::State<AppState> = app_clone.state();
-                                let toggle_sc = state.toggle_shortcut.lock().await.clone();
-                                let cancel_sc = state.cancel_shortcut.lock().await.clone();
+                        let app_clone = app_handle_hotkey.clone();
+                        let shortcut_str = format!("{:?}", shortcut); // Format outside async block
 
-                                // Check if this is the cancel shortcut
+                        tauri::async_runtime::spawn(async move {
+                            let state: tauri::State<AppState> = app_clone.state();
+                            let toggle_sc = state.toggle_shortcut.lock().await.clone();
+                            let cancel_sc = state.cancel_shortcut.lock().await.clone();
+                            let rec_mode = state.recording_mode.lock().await.clone();
+
+                            // Check if this is the cancel shortcut
+                            if is_pressed {
                                 if let Some(parsed_cancel) = parse_shortcut(&cancel_sc) {
                                     let cancel_str = format!("{:?}", parsed_cancel);
                                     if shortcut_str == cancel_str {
@@ -1212,17 +1279,42 @@ pub fn run() {
                                         }
                                     }
                                 }
+                            }
 
-                                // Check if this is the toggle shortcut
-                                if let Some(parsed_toggle) = parse_shortcut(&toggle_sc) {
-                                    let toggle_str = format!("{:?}", parsed_toggle);
-                                    if shortcut_str == toggle_str {
-                                        log::info!("🔥 TOGGLE SHORTCUT TRIGGERED ({})", toggle_sc);
-                                        let _ = cmd_toggle_recording(app_clone.clone(), app_clone.state()).await;
+                            // Check if this is the toggle shortcut
+                            if let Some(parsed_toggle) = parse_shortcut(&toggle_sc) {
+                                let toggle_str = format!("{:?}", parsed_toggle);
+                                if shortcut_str == toggle_str {
+                                    if rec_mode == "ptt" {
+                                        if is_pressed {
+                                            log::info!("🔥 PTT PRESS TRIGGERED ({})", toggle_sc);
+                                            let is_proc = state.is_processing.lock().await;
+                                            if !*is_proc {
+                                                if let Some(win) = app_clone.get_webview_window("recording") {
+                                                    let is_visible = win.is_visible().unwrap_or(false);
+                                                    if !is_visible {
+                                                        let _ = cmd_start_recording(app_clone.clone(), app_clone.state()).await;
+                                                    }
+                                                }
+                                            }
+                                        } else if is_released {
+                                            log::info!("🔥 PTT RELEASE TRIGGERED ({})", toggle_sc);
+                                            if let Some(win) = app_clone.get_webview_window("recording") {
+                                                let is_visible = win.is_visible().unwrap_or(false);
+                                                if is_visible {
+                                                    let _ = cmd_stop_recording(app_clone.clone(), app_clone.state()).await;
+                                                }
+                                            }
+                                        }
+                                    } else { // toggle mode
+                                        if is_pressed {
+                                            log::info!("🔥 TOGGLE SHORTCUT TRIGGERED ({})", toggle_sc);
+                                            let _ = cmd_toggle_recording(app_clone.clone(), app_clone.state()).await;
+                                        }
                                     }
                                 }
-                            });
-                        }
+                            }
+                        });
                     })
                     .build()
             )?;
@@ -1301,6 +1393,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            open_url,
+            get_recording_mode,
+            set_recording_mode,
             inject_text_directly,
             cmd_start_recording,
             cmd_stop_recording,
