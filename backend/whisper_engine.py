@@ -156,6 +156,48 @@ def get_models_dir() -> Path:
     return MODELS_DIR
 
 
+def get_default_models_dir() -> Path:
+    """Verzeichnis für das vom User manuell platzierte Standardmodell."""
+    from runtime_hooks.path_redirect import DEFAULT_MODELS_DIR
+    DEFAULT_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    return DEFAULT_MODELS_DIR
+
+
+# Dateien, die ein gültiges CTranslate2-Modell mindestens enthalten muss.
+# Wir verlangen nur config.json + model.bin, da tokenizer/vocabulary je nach
+# Modell-Variante unterschiedlich benannt sein können.
+_REQUIRED_DEFAULT_FILES = ["config.json", "model.bin"]
+
+
+def resolve_model_path(model: str):
+    """Löst den Modellnamen auf einen lokalen Pfad auf.
+
+    Für den Namen "default" wird das Verzeichnis data/models/default/
+    geprüft. Enthält es die erforderlichen CTranslate2-Dateien, wird der Pfad
+    zurückgegeben. Für andere Modellnamen wird (None, False) geliefert, damit
+    der bestehende HF-Cache-Pfad verwendet wird.
+
+    Returns:
+        Tuple (model_path, is_local_only):
+          - model_path    : Pfad zum lokalen Modell oder None
+          - is_local_only : True wenn das Modell zwingend lokal vorhanden sein
+                            muss (kein Auto-Download)
+    """
+    if model.lower() == "default":
+        default_dir = get_default_models_dir()
+        if all((default_dir / f).exists() for f in _REQUIRED_DEFAULT_FILES):
+            logger.info(f"✅ Standardmodell gefunden in: {default_dir}")
+            return default_dir, True
+        logger.warning(f"⚠️ Standardmodell fehlt in {default_dir}")
+        logger.warning(f"   Erforderliche Dateien: {_REQUIRED_DEFAULT_FILES}")
+        try:
+            logger.warning(f"   Vorhanden: {list(default_dir.iterdir())}")
+        except Exception:
+            logger.warning("   (Verzeichnis leer oder nicht lesbar)")
+        return None, True
+    return None, False
+
+
 def _model_cache_dir_name(model: str) -> str:
     """Mappe einen Modell-Alias ODER eine HF-Repo-ID auf den HuggingFace-Cache-
     Verzeichnisnamen (Layout: 'models--{org}--{name}').
@@ -259,6 +301,7 @@ class WhisperEngine:
 
         Args:
             model_size: Model alias (tiny/base/small/medium/large-v3/large-v3-turbo)
+                        ODER "default" für das manuell platzierte Standardmodell
                         ODER eine vollständige HF-Repo-ID der Form 'org/repo'.
                         (uses self.model_size if None)
 
@@ -267,6 +310,15 @@ class WhisperEngine:
         """
         if model_size is None:
             model_size = self.model_size
+
+        # Spezialbehandlung für das feste Standardmodell in data/models/default/
+        if model_size.lower() == "default":
+            default_dir = get_default_models_dir()
+            if all((default_dir / f).exists() for f in _REQUIRED_DEFAULT_FILES):
+                logger.info(f"✅ Standardmodell vorhanden in: {default_dir}")
+                return True
+            logger.warning(f"⚠️ Standardmodell NICHT gefunden in: {default_dir}")
+            return False
 
         models_dir = get_models_dir()
         dir_name = _model_cache_dir_name(model_size)
@@ -291,6 +343,9 @@ class WhisperEngine:
         """
         Load the Whisper model with automatic GPU compute type fallback, then CPU fallback
 
+        Für das Standardmodell ("default") wird ausschließlich der Ordner
+        data/models/default/ verwendet — es findet KEIN Auto-Download statt.
+
         Returns:
             True if successful, False otherwise
         """
@@ -307,6 +362,60 @@ class WhisperEngine:
             logger.info(f"   Device: {self.device}")
             logger.info(f"   Compute type: {self.compute_type}")
 
+            # ----------------------------------------------------------
+            # Standardmodell ("default") aus data/models/default/ laden.
+            # Kein Auto-Download, kein HF-Cache.
+            # ----------------------------------------------------------
+            if self.model_size.lower() == "default":
+                model_path, _ = resolve_model_path(self.model_size)
+                if model_path is None:
+                    logger.error("❌ Standardmodell fehlt in data/models/default/")
+                    logger.error(f"   Erforderliche Dateien: {_REQUIRED_DEFAULT_FILES}")
+                    logger.error("   Bitte CTranslate2-Modell-Dateien dorthin kopieren.")
+                    return False
+
+                # Gleicher CUDA-Compute-Type-Fallback wie bei HF-Modellen,
+                # aber mit lokalem Pfad statt download_root.
+                if self.device == "cuda":
+                    compute_types_to_try = self._get_cuda_compute_type_fallbacks()
+                    for compute_type in compute_types_to_try:
+                        try:
+                            logger.info(f"🔄 Trying CUDA (default) with compute type: {compute_type}")
+                            self.model = WhisperModel(
+                                str(model_path),
+                                device=self.device,
+                                compute_type=compute_type,
+                            )
+                            self.compute_type = compute_type
+                            self.is_loaded = True
+                            logger.info(f"✅ Default model loaded on CUDA with {compute_type}")
+                            return True
+                        except Exception as compute_error:
+                            logger.warning(f"⚠️ CUDA (default) with {compute_type} failed: {compute_error}")
+                            continue
+                    logger.warning("⚠️ All CUDA compute types failed for default model, falling back to CPU")
+                    self.device = "cpu"
+                    self.compute_type = "int8"
+
+                try:
+                    self.model = WhisperModel(
+                        str(model_path),
+                        device=self.device,
+                        compute_type=self.compute_type,
+                    )
+                    self.is_loaded = True
+                    logger.info(f"✅ Default model loaded successfully on {self.device.upper()}")
+                    return True
+                except Exception as final_error:
+                    logger.error(f"❌ Failed to load default model: {final_error}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    return False
+
+            # ----------------------------------------------------------
+            # Reguläre HF-Modelle (tiny, base, small, ...).
+            # Hier bleibt das bisherige Verhalten inkl. download_root erhalten.
+            # ----------------------------------------------------------
             # Create models directory if it doesn't exist
             models_dir = get_models_dir()
 

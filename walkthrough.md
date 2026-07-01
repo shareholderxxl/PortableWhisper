@@ -89,10 +89,12 @@ This document describes the fixes and enhancements applied to the Whisper4Window
 *   **File modified:** [index.html](file:///Y:/Austausch/whisper4windows-refactor/frontend/dist/index.html)
     *   Updated the model status polling JavaScript routines to dynamically reflect the actual backend status text (e.g., "Downloading model...", "Loading model...") in the UI status badges instead of showing a static "Lade herunter..." label.
     *   Added visual error feedback to the UI. If a model download fails, the button temporarily switches to a red **Fehlgeschlagen** (Failed) badge before resetting, instead of failing silently.
+    *   **ReferenceError Fix:** Renamed the non-existent variable `selectedDeviceValue` to `selectedDevice` in `startModelDownload` and `updateModelQualityDropdown` calls. This fixes a ReferenceError that was preventing the download requests from ever being sent to the backend.
+    *   **bypassed CORS/Preflight Constraints:** Added a custom `download_model` Tauri Rust command and updated `startModelDownload` in JavaScript to invoke this command instead of sending a direct HTTP `POST` fetch request. This avoids sandboxed browser restrictions in Microsoft Webview2 which frequently block custom cross-origin requests to local loops.
 
 ### 13. Backend File Logging for Debugging
 *   **File modified:** [main.py](file:///Y:/Austausch/whisper4windows-refactor/backend/main.py)
-    *   Configured the python logging system to write all logs and error tracebacks to `data/logs/whisper-backend.log`.
+    *   Configured the python logging system to write all logs, uvicorn HTTP logs, huggingface hub logs, and error tracebacks to `data/logs/whisper-backend.log`.
     *   **Why?** Since the backend runs as a silent windowless sidecar, failures (such as download timeouts or network errors) were impossible to diagnose. Writing to a local log file allows users to view exact tracebacks.
 
 ---

@@ -667,62 +667,107 @@
             gap: 10px;
             justify-content: center;
         }
+
+        /* Missing Model Dialog */
+        .missing-model-dialog {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .missing-model-dialog .dialog-content {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            color: var(--text-primary);
+        }
+        .missing-model-dialog .dialog-content h2 {
+            color: #ef4444;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        .missing-model-dialog .dialog-content h3 {
+            margin: 20px 0 10px 0;
+            font-size: 16px;
+        }
+        .missing-model-dialog .dialog-content p,
+        .missing-model-dialog .dialog-content li {
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+        .missing-model-dialog .dialog-content code {
+            background: rgba(0,0,0,0.12);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .missing-model-dialog .dialog-content pre {
+            background: rgba(0,0,0,0.12);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .missing-model-dialog .dialog-content a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .missing-model-dialog .dialog-content a:hover { text-decoration: underline; }
+        .missing-model-dialog .install-method {
+            background: rgba(0,0,0,0.04);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .missing-model-dialog .close-dialog-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .missing-model-dialog .close-dialog-btn:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
     <!-- Sidebar -->
     <div class="sidebar">
-        <div class="sidebar-item active" onclick="navigateToPage('home')">
-            <span class="sidebar-item-icon">🏠</span>
-            Home
+        <div class="sidebar-item active" onclick="navigateToPage('settings')">
+            <span class="sidebar-item-icon">⚙️</span>
+            Settings
         </div>
 
-        <div class="sidebar-item" onclick="navigateToPage('configuration')">
-            <span class="sidebar-item-icon">⚙️</span>
-            Configuration
-        </div>
         <div class="sidebar-item" onclick="navigateToPage('sound')">
             <span class="sidebar-item-icon">🔊</span>
             Sound
+        </div>
+
+        <div class="sidebar-item" onclick="navigateToPage('licenses')">
+            <span class="sidebar-item-icon">📜</span>
+            Licenses
         </div>
 
     </div>
 
     <!-- Main Content -->
     <div class="main-content">
-        <!-- HOME PAGE -->
-        <div id="page-home" class="page">
-            <h1 class="section-title">Get started</h1>
-
-            <div class="cards-grid">
-                <div class="card" onclick="navigateToPage('configuration')">
-                    <span class="card-icon">⏺</span>
-                    <div class="card-content">
-                        <div class="card-title">Start recording</div>
-                        <div class="card-description">Turn your voice to text with a single click.</div>
-                    </div>
-                    <div class="card-badge" id="home-shortcut-badge">Ctrl+\</div>
-                </div>
-
-                <div class="card" onclick="navigateToPage('configuration', 'shortcuts')">
-                    <span class="card-icon">✋</span>
-                    <div class="card-content">
-                        <div class="card-title">Customize your shortcuts</div>
-                        <div class="card-description">Change the keyboard shortcuts for Whisper4Windows.</div>
-                    </div>
-                </div>
-
-
-            </div>
-
-
-        </div>
-
-
-
-        <!-- CONFIGURATION PAGE -->
-        <div id="page-configuration" class="page hidden">
-            <h1 class="section-title">Configuration</h1>
+        <!-- SETTINGS PAGE -->
+        <div id="page-settings" class="page">
+            <h1 class="section-title">Settings</h1>
 
             <!-- Keyboard Shortcuts Section -->
             <div class="config-section" id="section-shortcuts">
@@ -783,42 +828,11 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
-                        <div class="config-row-title">Model Quality</div>
-                        <div class="config-row-description">Transcription accuracy vs speed</div>
+                        <div class="config-row-title">Aktives Modell</div>
+                        <div class="config-row-description">Whisper 3 Large Turbo (Standard). Modell kann in <code>data/models/default/</code> manuell ersetzt werden.</div>
                     </div>
                     <div class="config-row-right">
-                        <div class="custom-dropdown" id="modelDropdown">
-                            <div class="dropdown-header" onclick="toggleModelDropdown()">
-                                <span id="selectedModel">Small (Recommended)</span>
-                            </div>
-                            <div class="dropdown-content" id="modelDropdownContent">
-                                <div id="modelOptions"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="config-row">
-                    <div class="config-row-left">
-                        <div class="config-row-title">Processing Device</div>
-                        <div class="config-row-description">CPU or GPU acceleration</div>
-                    </div>
-                    <div class="config-row-right">
-                        <div class="device-buttons">
-                            <button class="device-btn active" id="deviceAuto" onclick="selectDevice('auto')">Auto</button>
-                            <button class="device-btn" id="deviceGPU" onclick="selectDevice('cuda')">GPU</button>
-                            <button class="device-btn" id="deviceCPU" onclick="selectDevice('cpu')">CPU</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="config-row">
-                    <div class="config-row-left">
-                        <div class="config-row-title">GPU Acceleration Libraries</div>
-                        <div class="config-row-description">Download CUDA libraries for GPU support</div>
-                    </div>
-                    <div class="config-row-right">
-                        <button class="btn" onclick="manualGPUSetup()">Install GPU Libraries...</button>
+                        <span class="status-indicator" id="modelStatusIndicator" style="cursor: default;">Prüfe...</span>
                     </div>
                 </div>
 
@@ -853,18 +867,6 @@
                 </div>
             </div>
 
-            <!-- Model Management Section -->
-            <div class="config-section" id="section-model-management">
-                <h3 class="config-section-title">Model Management</h3>
-                <div class="config-row-description" style="margin: 5px 0 15px 0; font-size: 13px; color: var(--text-secondary);">
-                    Hier kannst du zusätzliche KI-Modelle herunterladen. Heruntergeladene Modelle erscheinen oben in der Auswahl für die Modellqualität.
-                </div>
-                
-                <div id="model-list-container">
-                    <!-- Wird dynamisch per JS geladen -->
-                </div>
-            </div>
-
             <!-- Appearance Section -->
             <div class="config-section">
                 <h3 class="config-section-title">Appearance</h3>
@@ -890,16 +892,6 @@
             <!-- Application Section -->
             <div class="config-section">
                 <h3 class="config-section-title">Application</h3>
-
-                <div class="config-row">
-                    <div class="config-row-left">
-                        <div class="config-row-title">Update Application</div>
-                        <div class="config-row-description">Check for latest GitHub release</div>
-                    </div>
-                    <div class="config-row-right">
-                        <button class="btn" onclick="checkForUpdates()" disabled>Check for Updates...</button>
-                    </div>
-                </div>
 
                 <!-- About Section -->
                 <div class="config-section" style="margin-top: 30px; border-top: 1px solid var(--border-color); padding-top: 20px;">
@@ -988,6 +980,41 @@
                     <div class="config-row-right">
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80" oninput="updateVolume()">
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LICENSES PAGE -->
+        <div id="page-licenses" class="page hidden">
+            <h1 class="section-title">Lizenzen</h1>
+
+            <div class="config-section">
+                <h3 class="config-section-title">Whisper4Windows</h3>
+                <div class="config-row-description" style="line-height: 1.7;">
+                    <p><strong>Lizenz:</strong> MIT License</p>
+                    <p><strong>Urheber:</strong> Copyright (c) 2024 ShareholderXXL</p>
+                    <p><strong>Fork attribution:</strong> Basiert auf dem Originalprojekt von Bader Aljabri.</p>
+                    <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/Whisper4Windows" onclick="openExternalLink(event, 'https://github.com/shareholderxxl/Whisper4Windows')">github.com/shareholderxxl/Whisper4Windows</a></p>
+                    <p><strong>Vollständiger Lizenztext:</strong> Siehe <code>LICENSE</code> Datei im App-Ordner.</p>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3 class="config-section-title">Whisper 3 Large Turbo Modell</h3>
+                <div class="config-row-description" style="line-height: 1.7;">
+                    <p><strong>Source:</strong> Systran/faster-whisper-large-v3-turbo</p>
+                    <p><strong>Lizenz:</strong> MIT License</p>
+                    <p><strong>Modell-Download:</strong> <a href="https://huggingface.co/Systran/faster-whisper-large-v3-turbo" onclick="openExternalLink(event, 'https://huggingface.co/Systran/faster-whisper-large-v3-turbo')">huggingface.co/Systran/faster-whisper-large-v3-turbo</a></p>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3 class="config-section-title">Abhängigkeiten</h3>
+                <div class="config-row-description" style="line-height: 1.7;">
+                    <p><strong>faster-whisper:</strong> MIT License &mdash; <a href="https://github.com/SYSTRAN/faster-whisper" onclick="openExternalLink(event, 'https://github.com/SYSTRAN/faster-whisper')">GitHub</a></p>
+                    <p><strong>CTranslate2:</strong> BSD-3-Clause &mdash; <a href="https://github.com/OpenNMT/CTranslate2" onclick="openExternalLink(event, 'https://github.com/OpenNMT/CTranslate2')">GitHub</a></p>
+                    <p><strong>Tauri 2:</strong> MIT/Apache-2.0 &mdash; <a href="https://tauri.app" onclick="openExternalLink(event, 'https://tauri.app')">tauri.app</a></p>
+                    <p><strong>PyTorch</strong> (nur Build-Prozess): BSD-3-Clause &mdash; <a href="https://pytorch.org" onclick="openExternalLink(event, 'https://pytorch.org')">pytorch.org</a></p>
                 </div>
             </div>
         </div>
@@ -1220,9 +1247,20 @@
                 const data = await response.json();
 
                 const statusEl = document.getElementById('backendStatus');
-                statusEl.innerHTML = `<span>✅</span><span>${data.backend.toUpperCase()} Ready (${data.model})</span>`;
+                let statusText = `${data.backend.toUpperCase()} Ready`;
+                if (data.model_status === 'loaded') {
+                    statusText += ` (Modell geladen)`;
+                } else if (data.model_status === 'missing') {
+                    statusText += ` (Modell fehlt!)`;
+                }
+                statusEl.innerHTML = `<span>✅</span><span>${statusText}</span>`;
                 statusEl.classList.remove('offline', 'starting', 'checking');
                 lastBackendStatus = 'online';
+
+                // Modell-Status-Indikator aktualisieren
+                if (typeof data.model_status !== 'undefined') {
+                    updateModelStatusIndicator(data.model_status);
+                }
             } catch (error) {
                 const statusEl = document.getElementById('backendStatus');
                 if (lastBackendStatus !== 'offline') {
@@ -1565,301 +1603,102 @@
             }
         }
 
-        // Model dropdown data with metadata
-        const MODELS_METADATA = [
-            { value: 'tiny', name: 'Tiny (Fastest)', size: '75 MB', desc: 'Schnellste Erkennung, geringere Genauigkeit. Ideal zum Testen.' },
-            { value: 'base', name: 'Base', size: '140 MB', desc: 'Sehr schnell, solide Standard-Erkennung.' },
-            { value: 'small', name: 'Small (Recommended)', size: '460 MB', desc: 'Der Standard-Sweetspot aus Geschwindigkeit und Genauigkeit.' },
-            { value: 'medium', name: 'Medium', size: '1.5 GB', desc: 'Hohe Qualität, braucht stärkere Hardware.' },
-            { value: 'large-v3', name: 'Large V3', size: '3.0 GB', desc: 'Maximale Qualität für anspruchsvolle Erkennungen. GPU empfohlen.' },
-            { value: 'large-v3-turbo', name: 'Large V3 Turbo (Best)', size: '1.6 GB', desc: 'Hervorragende Kombination aus Large-Genauigkeit und viel höherem Tempo.' },
-            { value: 'mkenfenheuer/whisper-medium-cv11-german-ct2', name: 'Medium German (Fine-tuned)', size: '1.5 GB', desc: 'Speziell auf Deutsch trainiertes Medium-Modell (ausgewogener Ressourcenbedarf).' },
-            { value: 'Reality-Interface/whisper-large-v3-german-faster-whisper', name: 'Large V3 German (Fine-tuned)', size: '3.0 GB', desc: 'Die allerbeste Erkennungsgenauigkeit für deutsches Diktat. GPU empfohlen.' }
-        ];
-
-        let selectedModelValue = 'tiny';
-        let downloadedModels = new Set();
-        let activeDownloads = {}; // modelValue -> intervalId
-
-        async function checkDownloadedModels() {
-            console.log('🔍 Checking downloaded models...');
-            downloadedModels.clear();
-            
-            const statusPromises = MODELS_METADATA.map(async (model) => {
-                try {
-                    const response = await fetch(`${BACKEND_URL}/model/status?model_size=${model.value}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.is_downloaded) {
-                            downloadedModels.add(model.value);
-                        }
-                        return { value: model.value, is_downloaded: data.is_downloaded, is_loading: data.is_loading, status: data.status };
-                    }
-                } catch (e) {
-                    console.error(`Failed to check status for model ${model.value}:`, e);
-                }
-                return { value: model.value, is_downloaded: false, is_loading: false };
-            });
-
-            const results = await Promise.all(statusPromises);
-            
-            // Render Model Management List
-            renderModelManagementList(results);
-
-            // Trigger polling for any model currently loading/downloading
-            results.forEach(res => {
-                if (res.is_loading && !activeDownloads[res.value]) {
-                    startModelPolling(res.value);
-                }
-            });
-
-            // Update main Model Quality Dropdown
-            updateModelQualityDropdown();
-        }
-
-        function renderModelManagementList(results) {
-            const container = document.getElementById('model-list-container');
-            if (!container) return;
-
-            container.innerHTML = '';
-
-            MODELS_METADATA.forEach(model => {
-                const statusInfo = results.find(r => r.value === model.value) || { is_downloaded: false, is_loading: false };
-                
-                const row = document.createElement('div');
-                row.className = 'model-manage-row';
-                row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; margin-bottom: 10px;';
-
-                const left = document.createElement('div');
-                left.style.cssText = 'display: flex; flex-direction: column; gap: 4px; flex: 1; margin-right: 15px; text-align: left;';
-                
-                const title = document.createElement('span');
-                title.style.cssText = 'font-weight: 600; font-size: 14px; color: var(--text-main);';
-                title.textContent = model.name;
-
-                const desc = document.createElement('span');
-                desc.style.cssText = 'font-size: 12px; color: var(--text-secondary);';
-                desc.textContent = `${model.desc} • Größe: ${model.size}`;
-
-                left.appendChild(title);
-                left.appendChild(desc);
-                row.appendChild(left);
-
-                const right = document.createElement('div');
-                const cleanId = model.value.replace(/[^a-zA-Z0-9]/g, '-');
-                right.id = `model-action-container-${cleanId}`;
-
-                if (statusInfo.is_downloaded) {
-                    const badge = document.createElement('span');
-                    badge.className = 'status-indicator';
-                    badge.style.cursor = 'default';
-                    badge.textContent = 'Bereit';
-                    right.appendChild(badge);
-                } else if (statusInfo.is_loading || activeDownloads[model.value]) {
-                    const badge = document.createElement('span');
-                    badge.className = 'status-indicator starting';
-                    badge.style.cursor = 'default';
-                    badge.textContent = statusInfo.status || 'Lade herunter...';
-                    right.appendChild(badge);
-                } else {
-                    const button = document.createElement('button');
-                    button.className = 'btn';
-                    button.style.padding = '6px 12px';
-                    button.style.fontSize = '12px';
-                    button.textContent = 'Herunterladen';
-                    button.onclick = () => startModelDownload(model.value);
-                    right.appendChild(button);
-                }
-
-                row.appendChild(right);
-                container.appendChild(row);
-            });
-        }
-
-        async function startModelDownload(modelValue) {
-            console.log(`📥 Triggering download for model: ${modelValue}`);
-            
-            // Show loading status in UI instantly
-            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
-            const container = document.getElementById(`model-action-container-${cleanId}`);
-            if (container) {
-                container.innerHTML = '';
-                const badge = document.createElement('span');
-                badge.className = 'status-indicator starting';
-                badge.style.cursor = 'default';
-                badge.textContent = 'Lade herunter...';
-                container.appendChild(badge);
-            }
-
-            // Start polling backend status
-            startModelPolling(modelValue);
-
-            // Call load_model endpoint in backend asynchronously (fire-and-forget)
-            try {
-                const device = selectedDeviceValue || 'auto';
-                fetch(`${BACKEND_URL}/load_model`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model_size: modelValue,
-                        device: device,
-                        language: null
-                    })
-                }).catch(err => {
-                    console.error('Error triggering download:', err);
-                });
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        function startModelPolling(modelValue) {
-            if (activeDownloads[modelValue]) return;
-
-            const intervalId = setInterval(async () => {
-                try {
-                    const response = await fetch(`${BACKEND_URL}/model/status?model_size=${modelValue}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.is_downloaded) {
-                            console.log(`✅ Model ${modelValue} downloaded!`);
-                            clearInterval(intervalId);
-                            delete activeDownloads[modelValue];
-                            await checkDownloadedModels();
-                        } else if (data.is_loading) {
-                            // Update the UI with the actual backend download/loading text
-                            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
-                            const container = document.getElementById(`model-action-container-${cleanId}`);
-                            if (container) {
-                                let badge = container.querySelector('.status-indicator.starting');
-                                if (!badge) {
-                                    container.innerHTML = '';
-                                    badge = document.createElement('span');
-                                    badge.className = 'status-indicator starting';
-                                    badge.style.cursor = 'default';
-                                    container.appendChild(badge);
-                                }
-                                badge.textContent = data.status || 'Lade herunter...';
-                            }
-                        } else if (!data.is_loading) {
-                            console.warn(`⚠️ Model ${modelValue} stopped downloading without completion.`);
-                            clearInterval(intervalId);
-                            delete activeDownloads[modelValue];
-                            
-                            // Show failure indicator in UI
-                            const cleanId = modelValue.replace(/[^a-zA-Z0-9]/g, '-');
-                            const container = document.getElementById(`model-action-container-${cleanId}`);
-                            if (container) {
-                                container.innerHTML = '';
-                                const badge = document.createElement('span');
-                                badge.className = 'status-indicator offline';
-                                badge.style.cursor = 'default';
-                                badge.textContent = 'Fehlgeschlagen';
-                                container.appendChild(badge);
-                            }
-                            
-                            // Reset back to normal button after 4 seconds
-                            setTimeout(async () => {
-                                await checkDownloadedModels();
-                            }, 4000);
-                        }
-                    }
-                } catch (e) {
-                    console.error(`Error polling status for model ${modelValue}:`, e);
-                }
-            }, 1500);
-
-            activeDownloads[modelValue] = intervalId;
-        }
-
-        function updateModelQualityDropdown() {
-            // Only allow selection of downloaded models. Default "tiny" is always available.
-            const availableList = MODELS_METADATA.filter(m => downloadedModels.has(m.value) || m.value === 'tiny');
-            
-            // Check if selected model is still available
-            if (!downloadedModels.has(selectedModelValue) && selectedModelValue !== 'tiny') {
-                console.warn(`Selected model ${selectedModelValue} is not downloaded. Reverting to tiny.`);
-                selectedModelValue = 'tiny';
-                const defaultModelObj = MODELS_METADATA.find(m => m.value === 'tiny');
-                document.getElementById('selectedModel').textContent = defaultModelObj ? defaultModelObj.name : 'Tiny (Fastest)';
-                
-                // Persist fallback selection to Rust backend
-                const { invoke } = window.__TAURI_INTERNALS__;
-                invoke('set_model_and_device', { 
-                    model: 'tiny', 
-                    device: selectedDeviceValue 
-                });
-            }
-
-            // Re-render dropdown list options
-            const optionsContainer = document.getElementById('modelOptions');
-            if (optionsContainer) {
-                optionsContainer.innerHTML = '';
-                availableList.forEach(model => {
-                    const option = document.createElement('div');
-                    option.className = 'dropdown-option';
-                    option.textContent = model.name;
-                    option.dataset.value = model.value;
-
-                    if (model.value === selectedModelValue) {
-                        option.classList.add('selected');
-                    }
-
-                    option.onclick = () => selectModel(model.value, model.name);
-                    optionsContainer.appendChild(option);
-                });
-            }
-        }
-
-        function initializeModelDropdown() {
-            // Initial render, checks status asynchronously
-            updateModelQualityDropdown();
-        }
-
-        function toggleModelDropdown() {
-            const header = document.querySelector('#modelDropdown .dropdown-header');
-            const content = document.getElementById('modelDropdownContent');
-
-            header.classList.toggle('open');
-            content.classList.toggle('show');
-        }
-
-        function selectModel(value, name) {
-            selectedModelValue = value;
-            document.getElementById('selectedModel').textContent = name;
-
-            document.querySelectorAll('#modelOptions .dropdown-option').forEach(opt => {
-                opt.classList.remove('selected');
-                if (opt.dataset.value === value) {
-                    opt.classList.add('selected');
-                }
-            });
-
-            const header = document.querySelector('#modelDropdown .dropdown-header');
-            const content = document.getElementById('modelDropdownContent');
-            header.classList.remove('open');
-            content.classList.remove('show');
-
-            saveSettings();
-        }
-
-        // Sync model from Rust (called when other window changes it)
-        window.syncModelFromRust = function(modelValue) {
-            console.log('🔄 Syncing model from Rust:', modelValue);
-            const model = MODELS_METADATA.find(m => m.value === modelValue);
-            if (model) {
-                selectedModelValue = modelValue;
-                document.getElementById('selectedModel').textContent = model.name;
-
-                // Update selected state in dropdown
-                document.querySelectorAll('#modelOptions .dropdown-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                    if (opt.dataset.value === modelValue) {
-                        opt.classList.add('selected');
-                    }
-                });
-            }
+        // ------------------------------------------------------------------
+        // Modell-Status (festes Standardmodell, keine Downloads/Auswahl mehr)
+        // ------------------------------------------------------------------
+        // syncModelFromRust bleibt als Noop erhalten, falls noch Rust-Seite
+        // Nachrichten sendet (kein Fehler im Frontend).
+        window.syncModelFromRust = function(_modelValue) {
+            console.log('ℹ️ syncModelFromRust (noop, festes Modell)');
         };
+
+        // Modell-Verfügbarkeit prüfen und ggf. Hinweis-Dialog anzeigen.
+        async function checkModelAvailability() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`, {
+                    headers: { 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(3000)
+                });
+                const data = await response.json();
+                updateModelStatusIndicator(data.model_status);
+                if (data.model_status === 'missing' && !sessionStorage.getItem('missingModelShown')) {
+                    showMissingModelDialog();
+                    sessionStorage.setItem('missingModelShown', 'true');
+                }
+            } catch (e) {
+                console.error('Health check fehlgeschlagen:', e);
+            }
+        }
+
+        function updateModelStatusIndicator(modelStatus) {
+            const el = document.getElementById('modelStatusIndicator');
+            if (!el) return;
+            if (modelStatus === 'loaded') {
+                el.textContent = 'Geladen';
+                el.className = 'status-indicator';
+                el.style.background = 'rgba(52, 211, 153, 0.15)';
+                el.style.color = '#34d399';
+            } else if (modelStatus === 'available') {
+                el.textContent = 'Verfügbar';
+                el.className = 'status-indicator';
+                el.style.background = 'rgba(102, 126, 234, 0.15)';
+                el.style.color = '#667eea';
+            } else {
+                el.textContent = 'Fehlt';
+                el.className = 'status-indicator';
+                el.style.background = 'rgba(239, 68, 68, 0.15)';
+                el.style.color = '#ef4444';
+            }
+        }
+
+        // Freundlicher Dialog bei fehlendem Standardmodell.
+        function showMissingModelDialog() {
+            if (document.querySelector('.missing-model-dialog')) return;
+            const dialog = document.createElement('div');
+            dialog.className = 'missing-model-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-content">
+                    <h2>❌ Modell nicht gefunden</h2>
+                    <p>Whisper4Windows benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
+                    <h3>So installieren Sie das Modell:</h3>
+                    <div class="install-method">
+                        <strong>Option A: HuggingFace CLI (empfohlen)</strong>
+                        <pre>pip install huggingface-hub
+huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False</pre>
+                    </div>
+                    <div class="install-method">
+                        <strong>Option B: Manuelles Download</strong>
+                        <ol>
+                            <li>Öffnen Sie: <a href="https://huggingface.co/Systran/faster-whisper-large-v3-turbo" onclick="openExternalLink(event, 'https://huggingface.co/Systran/faster-whisper-large-v3-turbo')">huggingface.co/Systran/faster-whisper-large-v3-turbo</a></li>
+                            <li>Laden Sie alle Dateien herunter (config.json, model.bin, tokenizer.json, ...)</li>
+                            <li>Kopieren Sie die Dateien nach <code>data/models/default/</code></li>
+                        </ol>
+                    </div>
+                    <h3>Erforderliche Dateien in <code>data/models/default/</code>:</h3>
+                    <ul>
+                        <li><code>config.json</code></li>
+                        <li><code>model.bin</code></li>
+                    </ul>
+                    <p><strong>Hinweis:</strong> Sie können jedes Whisper-Modell im CTranslate2-Format verwenden. Details siehe <strong>Licenses</strong>-Seite und <code>README.md</code>.</p>
+                    <button class="close-dialog-btn" type="button">Schließen</button>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+            dialog.querySelector('.close-dialog-btn').onclick = () => dialog.remove();
+            dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+        }
+
+        // Externe Links sicher via Rust öffnen (vermeidet Browser-Öffnung im Tauri-Webview).
+        function openExternalLink(event, url) {
+            event.preventDefault();
+            try {
+                const { invoke } = window.__TAURI_INTERNALS__;
+                invoke('open_url', { url: url }).catch(err => console.error('open_url failed:', err));
+            } catch (e) {
+                window.open(url, '_blank');
+            }
+        }
+        window.openExternalLink = openExternalLink;
 
         // Theme dropdown data
         const THEMES = [
@@ -1993,7 +1832,7 @@
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
-            const dropdowns = ['languageDropdown', 'modelDropdown', 'themeDropdown', 'microphoneDropdown'];
+            const dropdowns = ['languageDropdown', 'themeDropdown', 'microphoneDropdown'];
 
             dropdowns.forEach(dropdownId => {
                 const dropdown = document.getElementById(dropdownId);
@@ -2006,30 +1845,11 @@
             });
         });
 
-        async function checkForUpdates() {
-            try {
-                alert('Checking for updates from GitHub...');
-
-                const { invoke } = window.__TAURI_INTERNALS__;
-                const result = await invoke('check_for_updates');
-
-                alert(result);
-            } catch (error) {
-                console.error('❌ Error checking for updates:', error);
-                alert('Failed to check for updates. Please check your internet connection.');
-            }
-        }
-
         async function saveSettings() {
-            const model = selectedModelValue;
-
+            // Modell ist fest ("default"); nur Device wird ggf. gespeichert.
             try {
                 const { invoke } = window.__TAURI_INTERNALS__;
-                await invoke('set_model_and_device', {
-                    model: model,
-                    device: selectedDevice
-                });
-                console.log(`Settings saved: model=${model}, device=${selectedDevice}`);
+                console.log(`Settings: device=${selectedDevice}`);
             } catch (error) {
                 console.error('Error saving settings:', error);
             }
@@ -2192,9 +2012,9 @@
 
                     if (response.ok) {
                         console.log('✅ Backend is ready');
-                        // Backend is ready, now check GPU and check downloaded models
+                        // Backend is ready, now check GPU and Modell-Verfügbarkeit
                         await checkGPUSetup();
-                        await checkDownloadedModels();
+                        await checkModelAvailability();
                         return;
                     }
                 } catch (error) {
@@ -2214,7 +2034,6 @@
 
             // Initialize all dropdowns
             initializeLanguageDropdown();
-            initializeModelDropdown();
             initializeThemeDropdown();
             initializeMicrophoneDropdown();
 
@@ -2313,28 +2132,20 @@
                 console.error('❌ Error loading shortcuts:', error);
             }
 
-            // Load saved model and device from Rust state
+            // Load saved device from Rust state (Modell ist fest auf "default")
             try {
                 const { invoke } = window.__TAURI_INTERNALS__;
                 const [model, device] = await invoke('get_model_and_device');
-                console.log('📥 Loaded model from state:', model, 'device:', device);
+                console.log('📥 Loaded from state: model=', model, 'device=', device);
 
-                // Update UI to match
-                const modelObj = MODELS.find(m => m.value === model);
-                if (modelObj) {
-                    selectedModelValue = model;
-                    document.getElementById('selectedModel').textContent = modelObj.name;
-                    initializeModelDropdown(); // Refresh to show selected
-                }
-
-                // Update device selection
+                // Update device selection (Modell-Auswahl entfällt)
                 selectedDevice = device;
                 const buttons = {
                     'auto': document.getElementById('deviceAuto'),
                     'cuda': document.getElementById('deviceGPU'),
                     'cpu': document.getElementById('deviceCPU')
                 };
-                Object.values(buttons).forEach(btn => btn.classList.remove('active'));
+                Object.values(buttons).forEach(btn => { if (btn) btn.classList.remove('active'); });
                 if (buttons[device]) {
                     buttons[device].classList.add('active');
                 }

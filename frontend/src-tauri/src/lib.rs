@@ -38,7 +38,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            selected_model: "tiny".to_string(),
+            selected_model: "default".to_string(),
             selected_device: "auto".to_string(),
             selected_microphone: None,
             use_clipboard: true,
@@ -69,7 +69,7 @@ pub struct AppState {
 impl AppState {
     fn new(settings_path: PathBuf) -> Self {
         Self {
-            selected_model: Arc::new(Mutex::new("tiny".to_string())),
+            selected_model: Arc::new(Mutex::new("default".to_string())),
             selected_device: Arc::new(Mutex::new("auto".to_string())),
             selected_microphone: Arc::new(Mutex::new(None)),
             use_clipboard: Arc::new(Mutex::new(true)),
@@ -514,72 +514,6 @@ async fn cmd_toggle_recording(app: AppHandle, state: State<'_, AppState>) -> Res
     Ok(())
 }
 
-// Settings command
-#[tauri::command]
-async fn set_model_and_device(
-    model: String,
-    device: String,
-    state: State<'_, AppState>,
-    app: AppHandle
-) -> Result<(), String> {
-    *state.selected_model.lock().await = model.clone();
-    *state.selected_device.lock().await = device.clone();
-    log::info!("⚙️ Settings: model={}, device={}", model, device);
-
-    // Save settings to disk
-    state.save_settings().await;
-
-    // Notify backend to load the model immediately
-    let model_clone = model.clone();
-    let device_clone = device.clone();
-    let language = state.selected_language.lock().await.clone();
-
-    tokio::spawn(async move {
-        let client = reqwest::Client::new();
-        let lang_value = if language == "auto" {
-            serde_json::Value::Null
-        } else {
-            serde_json::json!(language)
-        };
-
-        match client.post("http://127.0.0.1:8765/load_model")
-            .json(&serde_json::json!({
-                "model_size": model_clone,
-                "device": device_clone,
-                "language": lang_value
-            }))
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => {
-                log::info!("✅ Backend loaded model: {} on {}", model_clone, device_clone);
-            }
-            Ok(resp) => {
-                log::warn!("⚠️ Backend /load_model returned: {}", resp.status());
-            }
-            Err(e) => {
-                log::warn!("⚠️ Failed to notify backend to load model: {}", e);
-            }
-        }
-    });
-
-    // Sync to both windows
-    if let Some(main_win) = app.get_webview_window("main") {
-        let _ = main_win.eval(&format!(
-            "if (typeof syncModelFromRust === 'function') {{ syncModelFromRust('{}'); }}",
-            model
-        ));
-    }
-    if let Some(recording_win) = app.get_webview_window("recording") {
-        let _ = recording_win.eval(&format!(
-            "if (typeof syncModelFromRust === 'function') {{ syncModelFromRust('{}'); }}",
-            model
-        ));
-    }
-
-    Ok(())
-}
-
 // Get current model and device settings
 #[tauri::command]
 async fn get_model_and_device(state: State<'_, AppState>) -> Result<(String, String), String> {
@@ -1002,11 +936,6 @@ async fn set_launch_on_startup(enabled: bool) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-async fn check_for_updates() -> Result<String, String> {
-    Ok("No updates available".to_string())  // TODO: Implement GitHub release check
-}
-
 // Restart backend command
 #[tauri::command]
 async fn restart_backend(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
@@ -1401,7 +1330,6 @@ pub fn run() {
             cmd_stop_recording,
             cmd_cancel_recording,
             cmd_toggle_recording,
-            set_model_and_device,
             get_model_and_device,
             set_microphone_device,
             get_microphone_device,
@@ -1416,7 +1344,6 @@ pub fn run() {
             set_preferred_languages,
             get_launch_on_startup,
             set_launch_on_startup,
-            check_for_updates,
             restart_backend
         ])
         .build(tauri::generate_context!())

@@ -40,13 +40,14 @@ APP_DIR: Path = get_appdata_dir()
 
 # Einzelne Sub-Verzeichnisse
 MODELS_DIR: Path = APP_DIR / "models"
+DEFAULT_MODELS_DIR: Path = APP_DIR / "models" / "default"
 TEMP_DIR: Path = APP_DIR / "temp"
 LOGS_DIR: Path = APP_DIR / "logs"
 GPU_LIBS_DIR: Path = APP_DIR / "gpu_libs"
 CACHE_DIR: Path = APP_DIR / "cache"
 
 # Verzeichnisse sicher anlegen (idempotent)
-for _d in (MODELS_DIR, TEMP_DIR, LOGS_DIR, GPU_LIBS_DIR, CACHE_DIR):
+for _d in (MODELS_DIR, DEFAULT_MODELS_DIR, TEMP_DIR, LOGS_DIR, GPU_LIBS_DIR, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # HuggingFace-Cache umleiten — MUSS vor jedem HF-Import gesetzt sein.
@@ -69,6 +70,11 @@ if getattr(sys, "stderr", None) is None:
 def get_models_dir() -> Path:
     """Modelle-Verzeichnis (für whisper_engine.get_models_dir Kompatibilität)."""
     return MODELS_DIR
+
+
+def get_default_models_dir() -> Path:
+    """Verzeichnis für das vom User manuell platzierte Standardmodell."""
+    return DEFAULT_MODELS_DIR
 
 
 def get_gpu_libs_dir() -> Path:

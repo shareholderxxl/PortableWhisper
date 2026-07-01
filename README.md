@@ -224,3 +224,95 @@ Inspired by Superwhisper for Mac.
 ---
 
 **Ready to transform your workflow? Download Whisper4Windows now and experience the future of voice input on Windows.** 🎤
+
+---
+
+## 📦 Modell-Installation
+
+Whisper4Windows wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten (~200 MB). Sie müssen das Modell einmalig manuell herunterladen und installieren.
+
+### Standardmodell: Whisper 3 Large Turbo
+
+**Empfohlenes Modell:** `Systran/faster-whisper-large-v3-turbo` (~1,6 GB)
+
+Dieses Modell bietet eine hervorragende Kombination aus Genauigkeit und Geschwindigkeit (Large-V3-Qualität mit Turbo-Performance).
+
+#### Installation
+
+**Option A: HuggingFace CLI (empfohlen)**
+
+```bash
+# 1. huggingface-cli installieren
+pip install huggingface-hub
+
+# 2. In den App-Ordner wechseln
+cd C:\Pfad\zu\Whisper4Windows
+
+# 3. Modell herunterladen
+huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False
+```
+
+**Option B: Manuelles Download**
+
+1. Öffnen Sie: https://huggingface.co/Systran/faster-whisper-large-v3-turbo
+2. Laden Sie alle Dateien herunter:
+   - `config.json`
+   - `model.bin`
+   - `tokenizer.json`
+   - `vocabulary.txt`
+   - (und alle weiteren Dateien im Repository)
+3. Kopieren Sie die Dateien in den Ordner: `data/models/default/`
+
+#### Struktur überprüfen
+
+Nach der Installation sollte `data/models/default/` mindestens diese Dateien enthalten:
+
+```
+data/models/default/
+├── config.json
+├── model.bin
+├── tokenizer.json
+└── vocabulary.txt
+```
+
+#### App starten
+
+Starten Sie `Whisper4Windows.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
+
+### Modell ersetzen
+
+Sie können das Modell jederzeit durch ein anderes Whisper-Modell ersetzen:
+
+1. Schließen Sie Whisper4Windows
+2. Ersetzen Sie die Dateien in `data/models/default/`
+3. Starten Sie die App neu
+
+**Kompatible Modelle** (alle im CTranslate2-Format):
+
+| Modell | Größe | Eigenschaft |
+|--------|-------|-------------|
+| `Systran/faster-whisper-tiny` | ~75 MB | Sehr schnell, geringere Genauigkeit |
+| `Systran/faster-whisper-base` | ~140 MB | Schnell |
+| `Systran/faster-whisper-small` | ~460 MB | Guter Kompromiss für CPU |
+| `Systran/faster-whisper-medium` | ~1,5 GB | Hohe Qualität |
+| `Systran/faster-whisper-large-v3` | ~3,0 GB | Maximale Qualität, GPU empfohlen |
+| `Systran/faster-whisper-large-v3-turbo` | ~1,6 GB | **Bestes Verhältnis (Standard)** |
+| `Reality-Interface/whisper-large-v3-german-faster-whisper` | ~3,0 GB | Bestes für deutsches Diktat |
+
+**WICHTIG:** Das Modell MUSS im **CTranslate2-Format** vorliegen (nicht im transformers-Format). Alle `faster-whisper-*` Modelle von Systran sind im richtigen Format.
+
+### Fehlerbehandlung
+
+Wenn Sie beim Start die Fehlermeldung "Modell nicht gefunden" erhalten:
+
+1. Stellen Sie sicher, dass `data/models/default/` existiert
+2. Überprüfen Sie, dass `config.json` und `model.bin` vorhanden sind
+3. Prüfen Sie `data/logs/whisper-backend.log` für detaillierte Fehlerinformationen
+4. Stellen Sie sicher, dass das Modell im CTranslate2-Format vorliegt
+
+### Performance-Tipps
+
+- **CPU-Only:** Whisper Small oder Base sind am besten für reine CPU-Nutzung
+- **Mit GPU:** Large V3 Turbo bietet das beste Verhältnis aus Qualität und Geschwindigkeit
+- **Deutsches Diktat:** Das German Fine-tuned Modell bietet die beste Genauigkeit für Deutsch
+- **Schnelles Diktat:** Tiny ist sehr schnell, aber weniger genau

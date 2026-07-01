@@ -141,23 +141,18 @@ jobs:
       # 4. Portables ZIP zusammenstellen
       #    Struktur nach Entpacken:
       #      Whisper4Windows.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
-      #      binaries/whisper-backend-x86_64-pc-windows-msvc.exe
-      #      README.md, LICENSE
+      #      binaries/whisper-backend.exe
+      #      data/models/default/         (leer - User legt Modell ab)
+      #      data/temp/, data/logs/       (App-Daten, lokal im App-Ordner)
+      #      README.md, LICENSE, LICENSES.md
       # ============================================================
       - name: Assemble portable ZIP
         run: |
           $stage = "${{ runner.temp }}/portable"
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$stage/data/models" | Out-Null
-
-          # Pre-download default tiny model: write helper .py line by line
-          # via Set/Add-Content. Avoids python -c inline quoting pitfalls
-          # under Windows PowerShell 5.1.
-          Set-Content -Path _predl_tiny.py -Value "import sys"
-          Add-Content -Path _predl_tiny.py -Value "from faster_whisper import WhisperModel"
-          Add-Content -Path _predl_tiny.py -Value "WhisperModel('tiny', download_root=sys.argv[1])"
-          Write-Host "Pre-downloading default tiny model into portable data folder..."
-          python _predl_tiny.py "$stage/data/models"
+          New-Item -ItemType Directory -Force -Path "$stage/data/models/default" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/data/temp" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/data/logs" | Out-Null
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
           # Whisper4Windows.exe in das ZIP legen.
@@ -165,6 +160,28 @@ jobs:
           Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe "$stage/binaries/whisper-backend.exe"
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
+          Copy-Item LICENSES.md $stage/ -ErrorAction SilentlyContinue
+
+          # Platzhalter-README im default-Modellordner, damit User weiss,
+          # wohin die CTranslate2-Modell-Dateien gehören.
+          Set-Content -Path "$stage/data/models/default/README.txt" -Value @"
+          Whisper4Windows - Standardmodell-Ordner
+          ========================================
+
+          Legen Sie die CTranslate2-Modell-Dateien (mind. config.json und
+          model.bin) in diesen Ordner, damit Whisper4Windows funktioniert.
+
+          Empfohlenes Modell: Systran/faster-whisper-large-v3-turbo
+          Download: https://huggingface.co/Systran/faster-whisper-large-v3-turbo
+
+          Beispiel mit huggingface-cli:
+            huggingface-cli download Systran/faster-whisper-large-v3-turbo `
+              --local-dir data/models/default/ `
+              --local-dir-use-symlinks False
+
+          Sie koennen auch jedes andere Whisper-Modell im CTranslate2-Format
+          verwenden. Siehe README.md fuer Details.
+          "@
 
           $version = "${{ github.ref_name }}"
           if ($version -notmatch '^v') {

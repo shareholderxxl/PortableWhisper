@@ -32,15 +32,23 @@ from runtime_hooks.path_redirect import get_logs_dir
 
 # Configure logging
 log_file = get_logs_dir() / "whisper-backend.log"
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler = logging.FileHandler(log_file, encoding="utf-8", delay=True)
+file_handler.setFormatter(file_formatter)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(log_file, encoding="utf-8", delay=True)
+        file_handler
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Route external loggers to our file handler
+for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "faster_whisper", "huggingface_hub"):
+    logging.getLogger(name).addHandler(file_handler)
 
 # Global instances
 audio_capture: Optional[AudioCapture] = None
@@ -55,7 +63,7 @@ current_language: Optional[str] = None  # Store language from start request
 
 # Pydantic models
 class StartRequest(BaseModel):
-    model_size: str = "small"  # tiny, base, small, medium, large-v3
+    model_size: str = "default"  # "default" = data/models/default/ Ordner
     language: Optional[str] = None  # Language code or None for auto-detect
     device: str = "auto"  # auto, cpu, cuda
     device_index: Optional[int] = None  # Microphone device index (None = default)
@@ -76,6 +84,9 @@ class HealthResponse(BaseModel):
     status: str
     backend: str
     model: str
+    model_status: str = "missing"
+    recording: bool = False
+    version: str = "1.0.0"
     recording: bool
 
 
@@ -151,20 +162,32 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with model and device status.
+
+    Wird vom Tauri-Frontend periodisch gepollt. model_status ist:
+      - 'loaded'    : Modell im Speicher aktiv
+      - 'available' : Modell lokal vorhanden, aber nicht geladen
+      - 'missing'   : Modell fehlt in data/models/default/
+    """
     global whisper_engine
 
     backend = "cpu"
-    model = "not_loaded"
+    model = "default"
+    model_status = "missing"
 
-    if whisper_engine and whisper_engine.is_loaded:
-        backend = whisper_engine.device
-        model = whisper_engine.model_size
+    if whisper_engine is not None:
+        backend = str(whisper_engine.device)
+        if whisper_engine.is_loaded:
+            model = str(whisper_engine.model_size)
+            model_status = "loaded"
+        elif whisper_engine.is_model_downloaded():
+            model_status = "available"
 
     return HealthResponse(
         status="ok",
         backend=backend,
         model=model,
+        model_status=model_status,
         recording=is_recording
     )
 
@@ -248,7 +271,7 @@ async def load_model(request: StartRequest):
             is_model_loading = True
             model_loading_info = {
                 "model": whisper_engine.model_size,
-                "status": "Downloading model..." if not whisper_engine.is_model_downloaded() else "Loading model..."
+                "status": "Loading model..."
             }
 
             logger.info("📥 Loading Whisper model into memory...")
@@ -259,9 +282,13 @@ async def load_model(request: StartRequest):
             model_loading_info = {"model": "", "status": ""}
 
             if not success:
+                error_msg = "Failed to load Whisper model."
+                if whisper_engine.model_size.lower() == "default" and not whisper_engine.is_model_downloaded():
+                    error_msg += " Please place CTranslate2 model files in data/models/default/"
                 return {
                     "status": "error",
-                    "message": "Failed to load Whisper model"
+                    "message": error_msg,
+                    "details": "Auto-download is disabled. Place models in data/models/default/."
                 }
 
             logger.info(f"✅ Model loaded: {request.model_size} on {whisper_engine.device}")
@@ -391,7 +418,7 @@ async def stop_recording():
             is_model_loading = True
             model_loading_info = {
                 "model": whisper_engine.model_size,
-                "status": "Downloading model..." if not whisper_engine.is_model_downloaded() else "Loading model..."
+                "status": "Loading model..."
             }
 
             logger.info("📥 Loading Whisper model...")
