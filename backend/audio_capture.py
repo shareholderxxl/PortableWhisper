@@ -152,6 +152,28 @@ class AudioCapture:
                 break
         logger.info("✓ Audio queue cleared")
     
+    def drain_available(self) -> Optional[np.ndarray]:
+        """
+        Non-blocking: holt alle aktuellen Chunks aus der Queue und gibt
+        sie als konkatiniertes numpy-Array zurück. Leert die Queue.
+        
+        Returns:
+            numpy array of audio data, or None if queue was empty
+        """
+        audio_chunks = []
+        while not self.audio_queue.empty():
+            try:
+                chunk = self.audio_queue.get_nowait()
+                audio_chunks.append(chunk)
+            except queue.Empty:
+                break
+        
+        if not audio_chunks:
+            return None
+        
+        audio_data = np.concatenate(audio_chunks, axis=0)
+        return audio_data
+
     def get_audio_chunk(self, min_duration: float = 0.5) -> Optional[np.ndarray]:
         """
         Get accumulated audio chunks from queue

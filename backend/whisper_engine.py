@@ -598,6 +598,90 @@ class WhisperEngine:
                 "text": ""
             }
     
+    def transcribe_chunk(
+        self,
+        audio_data: np.ndarray,
+        language: Optional[str] = None,
+        task: str = "transcribe"
+    ) -> Dict:
+        """
+        Transkribiert einen kurzen Audio-Chunk (optimiert für Streaming).
+
+        Im Gegensatz zu transcribe_audio():
+        - Weist Chunks unter 1 s Lautzeit zurück (Halluzinations-Schutz).
+        - Nutzt condition_on_previous_text=False.
+
+        Args:
+            audio_data: Audio-Chunk (float32, mono, 16kHz)
+            language: Sprachcode oder None für Auto-Detect
+            task: 'transcribe' oder 'translate'
+
+        Returns:
+            Dict mit {"success", "text", "segments", ...}
+            oder {"success": False, "skipped": True} für zu kurze Chunks.
+        """
+        # Sicherstellen, dass Modell geladen ist
+        if not self.is_loaded:
+            return {
+                "success": False,
+                "error": "Model not loaded",
+                "text": ""
+            }
+
+        try:
+            # Input sanitization
+            if audio_data.dtype != np.float32:
+                audio_data = audio_data.astype(np.float32)
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data.flatten()
+
+            # Mindestlängen-Prüfung
+            duration = len(audio_data) / 16000  # 16 kHz sample rate
+            if duration < 1.0:
+                logger.debug(f"⏭️ Chunk zu kurz ({duration:.2f}s) — übersprungen")
+                return {
+                    "success": False,
+                    "skipped": True,
+                    "text": ""
+                }
+
+            logger.info(f"🎙️ Transcribing chunk ({duration:.1f}s)...")
+
+            segments, info = self.model.transcribe(
+                audio_data,
+                language=language,
+                task=task,
+                beam_size=1,
+                best_of=1,
+                temperature=0.0,
+                vad_filter=False,
+                condition_on_previous_text=False
+            )
+
+            full_text = ""
+            for segment in segments:
+                full_text += segment.text
+
+            full_text = full_text.strip()
+            logger.info(f"✅ Chunk result: \"{full_text[:80]}...\"" if len(full_text) > 80 else f"✅ Chunk result: \"{full_text}\"")
+
+            return {
+                "success": True,
+                "text": full_text,
+                "segments": [],
+                "language": info.language,
+                "language_probability": info.language_probability,
+                "duration": duration
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Chunk transcription failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "text": ""
+            }
+
     def transcribe_file(self, audio_file: str, language: Optional[str] = None) -> Dict:
         """
         Transcribe an audio file
