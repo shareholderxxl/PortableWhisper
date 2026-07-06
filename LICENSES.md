@@ -1,6 +1,6 @@
-# Whisper4Windows - Lizenzinformationen
+# PortableWhisper - Lizenzinformationen
 
-## Whisper4Windows
+## PortableWhisper
 
 **Lizenz:** MIT License
 

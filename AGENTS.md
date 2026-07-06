@@ -5,7 +5,7 @@ first for the 3-phase roadmap before any non-trivial change.
 
 ## What this is
 
-Whisper4Windows — local, offline speech-to-text for Windows. Stack:
+PortableWhisper — local, offline speech-to-text for Windows. Stack:
 - **Backend**: Python 3.11 + FastAPI + `faster-whisper`/`ctranslate2` (no torch).
   Flat module layout in `backend/` (`main.py`, `whisper_engine.py`,
   `audio_capture.py`, `gpu_manager.py`).
@@ -103,7 +103,7 @@ Phase 1 (Zero-Dependency & Portability) is **in implementation** on branch
 - Backend port = **8765** (constants `BACKEND_HOST`/`BACKEND_PORT` in `main.py`).
 - PyInstaller **without torch** (ctranslate2 only); spec = `backend/whisper-backend.spec`.
 - Build artifact: **portable ZIP only** (no MSI/NSIS, no UAC) via GitHub Actions.
-- File paths route to `%LOCALAPPDATA%/Whisper4Windows/{models,temp,logs}` via
+- File paths route to `%LOCALAPPDATA%/PortableWhisper/{models,temp,logs}` via
   `backend/runtime_hooks/path_redirect.py` (imported first in `main.py`).
 - Sidecar lifecycle: global `RunEvent::Exit` handler kills the backend on any
   exit path (`lib.rs`); sidecar permission via structured entries in

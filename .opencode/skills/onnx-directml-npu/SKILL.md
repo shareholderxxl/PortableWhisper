@@ -210,7 +210,7 @@ async def startup():
     global session
     model_path = get_model_path()
     session = create_dml_session(model_path)
-    print(f"[Whisper4Windows] ONNX-Backend gestartet. NPU: {detect_npu()}")
+    print(f"[PortableWhisper] ONNX-Backend gestartet. NPU: {detect_npu()}")
 
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)):

@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo Building Whisper4Windows Backend Executable
+echo Building PortableWhisper Backend Executable
 echo ============================================
 echo.
 

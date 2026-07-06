@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo Building Whisper4Windows MSI Installer
+echo Building PortableWhisper MSI Installer
 echo ============================================
 echo.
 

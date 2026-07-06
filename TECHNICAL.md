@@ -1,10 +1,10 @@
 # 🔧 Technical Documentation
 
-Comprehensive technical guide for Whisper4Windows developers and contributors.
+Comprehensive technical guide for PortableWhisper developers and contributors.
 
 ## 🏗️ Architecture Overview
 
-Whisper4Windows uses a **sidecar architecture** with a Rust frontend and Python backend:
+PortableWhisper uses a **sidecar architecture** with a Rust frontend and Python backend:
 
 ```
 ┌─────────────────┐    HTTP/JSON    ┌─────────────────┐
@@ -45,7 +45,7 @@ Whisper4Windows uses a **sidecar architecture** with a Rust frontend and Python 
 ## 📁 Project Structure
 
 ```
-Whisper4Windows/
+PortableWhisper/
 ├── frontend/                    # Tauri frontend
 │   ├── src-tauri/              # Rust source
 │   │   ├── src/
@@ -193,7 +193,7 @@ pub struct AppState {
 
 ```json
 {
-  "productName": "Whisper4Windows",
+  "productName": "PortableWhisper",
   "version": "0.1.0",
   "identifier": "com.whisper4windows.dev",
   "app": {

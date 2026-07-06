@@ -160,7 +160,7 @@ if __name__ == "__main__":
     logger.info(f"GPU Test: {'✅ PASS' if gpu_ok else '❌ FAIL'}")
 
     if driver_ok and gpu_ok:
-        logger.info("\n✅ GPU is fully functional for Whisper4Windows!")
+        logger.info("\n✅ GPU is fully functional for PortableWhisper!")
     else:
         logger.info("\n❌ GPU has compatibility issues")
         if not driver_ok:

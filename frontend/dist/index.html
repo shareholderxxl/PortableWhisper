@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Whisper4Windows</title>
+    <title>PortableWhisper</title>
     <style>
         * {
             margin: 0;
@@ -899,7 +899,7 @@
 
                     <div class="config-row">
                         <div class="config-row-left">
-                            <div class="config-row-title">Whisper4Windows</div>
+                            <div class="config-row-title">PortableWhisper</div>
                             <div class="config-row-description">Lokales Speech-to-Text-Tool für Windows.</div>
                         </div>
                         <div class="config-row-right">
@@ -989,12 +989,12 @@
             <h1 class="section-title">Lizenzen</h1>
 
             <div class="config-section">
-                <h3 class="config-section-title">Whisper4Windows</h3>
+                <h3 class="config-section-title">PortableWhisper</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
                     <p><strong>Lizenz:</strong> MIT License</p>
                     <p><strong>Urheber:</strong> Copyright (c) 2024 ShareholderXXL</p>
                     <p><strong>Fork attribution:</strong> Basiert auf dem Originalprojekt von Bader Aljabri.</p>
-                    <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/Whisper4Windows" onclick="openExternalLink(event, 'https://github.com/shareholderxxl/Whisper4Windows')">github.com/shareholderxxl/Whisper4Windows</a></p>
+                    <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/PortableWhisper" onclick="openExternalLink(event, 'https://github.com/shareholderxxl/PortableWhisper')">github.com/shareholderxxl/PortableWhisper</a></p>
                     <p><strong>Vollständiger Lizenztext:</strong> Siehe <code>LICENSE</code> Datei im App-Ordner.</p>
                 </div>
             </div>
@@ -1659,7 +1659,7 @@
             dialog.innerHTML = `
                 <div class="dialog-content">
                     <h2>❌ Modell nicht gefunden</h2>
-                    <p>Whisper4Windows benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
+                    <p>PortableWhisper benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
                     <h3>So installieren Sie das Modell:</h3>
                     <div class="install-method">
                         <strong>Option A: HuggingFace CLI (empfohlen)</strong>
@@ -2030,7 +2030,7 @@ huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🚀 Whisper4Windows UI Loaded');
+            console.log('🚀 PortableWhisper UI Loaded');
 
             // Initialize all dropdowns
             initializeLanguageDropdown();

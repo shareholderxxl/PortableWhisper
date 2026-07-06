@@ -824,7 +824,7 @@ async fn get_launch_on_startup() -> Result<bool, String> {
 
     unsafe {
         const REG_PATH: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-        const APP_NAME: &str = "Whisper4Windows";
+        const APP_NAME: &str = "PortableWhisper";
 
         // Convert registry path to wide string
         let reg_path_wide: Vec<u16> = REG_PATH.encode_utf16().chain(std::iter::once(0)).collect();
@@ -871,7 +871,7 @@ async fn set_launch_on_startup(enabled: bool) -> Result<(), String> {
 
     unsafe {
         const REG_PATH: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-        const APP_NAME: &str = "Whisper4Windows";
+        const APP_NAME: &str = "PortableWhisper";
 
         // Convert registry path to wide string
         let reg_path_wide: Vec<u16> = REG_PATH.encode_utf16().chain(std::iter::once(0)).collect();
@@ -1071,7 +1071,7 @@ pub fn run() {
                     .build(),
             )?;
 
-            log::info!("🚀 Whisper4Windows starting...");
+            log::info!("🚀 PortableWhisper starting...");
 
             // Initialize app state with settings path in local "data" directory next to the executable
             let exe_dir = std::env::current_exe()

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Whisper4Windows",
+  "productName": "PortableWhisper",
   "version": "0.1.0",
-  "identifier": "com.whisper4windows.dev",
+  "identifier": "com.portablewhisper.dev",
   "build": {
     "frontendDist": "../dist",
     "beforeDevCommand": "",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Whisper4Windows - Settings",
+        "title": "PortableWhisper - Settings",
         "width": 880,
         "height": 700,
         "minWidth": 880,

@@ -1,9 +1,9 @@
 # GitHub Actions — Windows Build Pipeline
 
 ## Ziel
-Automatisierter Build von Whisper4Windows als portables ZIP-Archiv. Die Pipeline:
+Automatisierter Build von PortableWhisper als portables ZIP-Archiv. Die Pipeline:
 1. Baut das Python-Backend mit PyInstaller → `whisper-backend.exe`
-2. Baut das Tauri-Frontend + Sidecar → `Whisper4Windows.exe`
+2. Baut das Tauri-Frontend + Sidecar → `PortableWhisper.exe`
 3. Packt alles in ein portables ZIP
 4. Lädt es als GitHub Release / Artifact hoch
 
@@ -109,13 +109,13 @@ jobs:
       # ============================================
       - name: Build Portable ZIP
         run: |
-          $appName = "Whisper4Windows"
+          $appName = "PortableWhisper"
           $version = "${{ github.ref_name }}"
           $releaseDir = "src-tauri/target/release"
           $output = "${{ runner.temp }}\$appName-$version-portable.zip"
 
           Compress-Archive -Path @(
-            "$releaseDir\Whisper4Windows.exe",
+            "$releaseDir\PortableWhisper.exe",
             "src-tauri\binaries\whisper-backend.exe",
             "README.md",
             "LICENSE"
@@ -130,7 +130,7 @@ jobs:
       - name: Upload Portable ZIP as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Whisper4Windows-portable
+          name: PortableWhisper-portable
           path: ${{ env.ZIP_PATH }}
           retention-days: 30
 

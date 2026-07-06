@@ -1,10 +1,10 @@
 """
-Pfad-Management für Whisper4Windows.
+Pfad-Management für PortableWhisper.
 
 Lenkt alle Dateioperationen (Modelle, temporäre Audio-Chunks, Logs, GPU-Libs,
 HF-Cache) in ein einziges Benutzerverzeichnis unter
-    %LOCALAPPDATA%/Whisper4Windows/   (Windows)
-    ~/.local/share/Whisper4Windows/   (Linux/macOS)
+    %LOCALAPPDATA%/PortableWhisper/   (Windows)
+    ~/.local/share/PortableWhisper/   (Linux/macOS)
 
 Wird so früh wie möglich importiert (Top of main.py), damit die Umgebungs-
 variablen für den HuggingFace-Cache gesetzt sind, BEVOR huggingface_hub /
@@ -18,7 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "Whisper4Windows"
+APP_NAME = "PortableWhisper"
 
 
 def get_appdata_dir() -> Path:

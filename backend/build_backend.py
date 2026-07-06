@@ -1,5 +1,5 @@
 """
-PyInstaller build script for Whisper4Windows backend
+PyInstaller build script for PortableWhisper backend
 This creates a standalone executable that includes Python and all dependencies
 """
 

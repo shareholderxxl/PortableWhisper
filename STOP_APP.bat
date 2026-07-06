@@ -1,5 +1,5 @@
 @echo off
-echo Stopping Whisper4Windows...
+echo Stopping PortableWhisper...
 taskkill /f /im app.exe 2>nul
 taskkill /f /im python.exe 2>nul
 echo Done!

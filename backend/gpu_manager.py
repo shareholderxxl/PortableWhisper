@@ -31,7 +31,7 @@ CUDA_PACKAGES = {
 def get_gpu_libs_dir() -> Path:
     """Get the directory where GPU libraries are stored.
 
-    Liefert immer das zentrale Verzeichnis unter %LOCALAPPDATA%/Whisper4Windows/
+    Liefert immer das zentrale Verzeichnis unter %LOCALAPPDATA%/PortableWhisper/
     (definiert in runtime_hooks.path_redirect), sowohl im Source- als auch im
     gebündelten Modus. So landen heruntergeladene CUDA-Libs an genau einer Stelle.
     """

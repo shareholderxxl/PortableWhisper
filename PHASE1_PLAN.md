@@ -22,14 +22,14 @@
 | Bereich | Vorhanden | Lücke für Phase 1 |
 |---|---|---|
 | Backend (FastAPI) | `main.py`, `whisper_engine.py`, `gpu_manager.py`, `audio_capture.py` lauffähig | Default-Modell `small`/Systran → `primeline/whisper-large-v3-german` als Option |
-| Pfad-Logik | drei Stellen nutzen `%APPDATA%` (Roaming) | Konzept will `%LOCALAPPDATA%/Whisper4Windows/{models,temp,logs}` + HF-Cache-Umleitung |
+| Pfad-Logik | drei Stellen nutzen `%APPDATA%` (Roaming) | Konzept will `%LOCALAPPDATA%/PortableWhisper/{models,temp,logs}` + HF-Cache-Umleitung |
 | `build_backend.py` | PyInstaller one-file, ohne Modell | `.spec` mit UPX, excludes, vollständigen hiddenimports ohne torch |
 | Sidecar-Wiring (Rust) | `lib.rs:975` und `lib.rs:1123` spawnen `whisper-backend` | Shutdown-Handling + Restart-Logik härten |
 | `tauri.conf.json` | `externalBin: ["binaries/whisper-backend"]` gesetzt | `targets: "all"` → portables ZIP; `plugins.shell.scope` für Sidecar fehlt teils |
 | `src-tauri/binaries/` | **existiert nicht** | Muss erstellt und mit `.gitkeep` befüllt werden |
 | `.github/workflows/` | **existiert nicht** | Workflow aus Skill `github-actions-build` anlegen (Phase-1-Variante) |
 | Build-Doku | `WINDOWS-ABHAENGIGKEITEN.md` vorhanden | referenziert `requirements-portable.txt` (nicht vorhanden) |
-| Git | sauber, letzter Commit „Initialer Fork: Whisper4Windows + OpenCode-Skills" | Phase-1-Arbeit beginnt bei 0 |
+| Git | sauber, letzter Commit „Initialer Fork: PortableWhisper + OpenCode-Skills" | Phase-1-Arbeit beginnt bei 0 |
 
 ---
 
@@ -39,7 +39,7 @@
 |---|---|---|
 | 0 | Branch `phase-1` von `main` anlegen | git |
 | 1 | Runtime-Hook für Pfad-Redirect anlegen | `backend/runtime_hooks/path_redirect.py` (neu) |
-| 2 | `APPDATA`→`%LOCALAPPDATA%/Whisper4Windows` umstellen + HF-Cache setzen | `gpu_manager.py:34`, `whisper_engine.py:47,148`, `main.py` (früh im Import) |
+| 2 | `APPDATA`→`%LOCALAPPDATA%/PortableWhisper` umstellen + HF-Cache setzen | `gpu_manager.py:34`, `whisper_engine.py:47,148`, `main.py` (früh im Import) |
 | 3 | `primeline/whisper-large-v3-german` als wählbare Option (Default bleibt `small`) | `whisper_engine.py`, `main.py:41`, Frontend-Settings-UI (`frontend/dist/`) |
 | 4 | Port 8000 → 8765 durchgängig | `main.py` (Log + uvicorn.run), Frontend-Konstante, ggf. `.env` |
 | 5 | `whisper-backend.spec` anlegen (UPX, excludes, hiddenimports ohne torch) | `backend/whisper-backend.spec` (neu) |
@@ -55,9 +55,9 @@
 
 ## Verifikation (unter Windows, nach GitHub-Actions-Build)
 
-1. ZIP entpacken → `Whisper4Windows.exe` ohne Admin starten → **kein UAC-Prompt**.
+1. ZIP entpacken → `PortableWhisper.exe` ohne Admin starten → **kein UAC-Prompt**.
 2. Sidecar wird unsichtbar mitgestartet, API unter `http://127.0.0.1:8765` erreichbar.
-3. Beim ersten Start (oder Modellwechsel auf „large-v3-german") lädt das Modell nach `%LOCALAPPDATA%/Whisper4Windows/models/hub/`.
+3. Beim ersten Start (oder Modellwechsel auf „large-v3-german") lädt das Modell nach `%LOCALAPPDATA%/PortableWhisper/models/hub/`.
 4. App schließen → Sidecar-Prozess sauber beendet (Task-Manager prüfen, kein Zombie).
 5. Kein installiertes Python/Node.js nötig — alle Dependencies im ZIP gebündelt.
 

@@ -1,4 +1,4 @@
-# Whisper4Windows Backend Dependencies
+# PortableWhisper Backend Dependencies
 # Phase 1: Basic FastAPI server
 # Compatible with Python 3.13
 

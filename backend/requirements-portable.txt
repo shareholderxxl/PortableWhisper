@@ -1,4 +1,4 @@
-# Whisper4Windows Backend — Portable Build-Dependencies (Phase 1)
+# PortableWhisper Backend — Portable Build-Dependencies (Phase 1)
 #
 # Zweck: PyInstaller-Build des Backends in eine eigenstaendige
 # whisper-backend.exe (Sidecar). Ohne torch (nur ctranslate2).

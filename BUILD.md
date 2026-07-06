@@ -1,6 +1,6 @@
-# Building Whisper4Windows MSI Installer
+# Building PortableWhisper MSI Installer
 
-This guide explains how to build a standalone MSI installer for Whisper4Windows that includes both the frontend and backend.
+This guide explains how to build a standalone MSI installer for PortableWhisper that includes both the frontend and backend.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ This will:
 3. Build the Tauri frontend with the bundled backend
 4. Create an MSI installer (~660MB with CUDA libraries)
 
-**Output:** `frontend\src-tauri\target\release\bundle\msi\Whisper4Windows_0.1.0_x64_en-US.msi`
+**Output:** `frontend\src-tauri\target\release\bundle\msi\PortableWhisper_0.1.0_x64_en-US.msi`
 
 **Note:** The backend executable must be named `whisper-backend-x86_64-pc-windows-msvc.exe` for Tauri to recognize it as a sidecar.
 
@@ -179,7 +179,7 @@ The MSI is approximately ~660MB because it includes:
 - CUDA libraries (cublas, cudnn, etc.) (~400MB)
 - Tauri frontend (~10MB)
 
-**Note:** Whisper models are NOT included in the installer - they download automatically on first use to `%APPDATA%\Whisper4Windows\models\`
+**Note:** Whisper models are NOT included in the installer - they download automatically on first use to `%APPDATA%\PortableWhisper\models\`
 
 To reduce size:
 - Remove CUDA bundling (edit `build_backend.py` to exclude NVIDIA DLLs) - saves ~400MB but requires users to install CUDA
@@ -205,7 +205,7 @@ To reduce size:
 
 1. Build the MSI: `BUILD_INSTALLER.bat`
 2. Create a GitHub release
-3. Upload the MSI file: `Whisper4Windows_0.1.0_x64_en-US.msi`
+3. Upload the MSI file: `PortableWhisper_0.1.0_x64_en-US.msi`
 4. Users download and install directly
 
 ### Release Checklist

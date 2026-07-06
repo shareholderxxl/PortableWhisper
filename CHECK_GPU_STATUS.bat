@@ -1,6 +1,6 @@
 @echo off
 echo ====================================
-echo Whisper4Windows GPU Diagnostic Tool
+echo PortableWhisper GPU Diagnostic Tool
 echo ====================================
 echo.
 
@@ -43,12 +43,12 @@ if %errorlevel% equ 0 (
 echo.
 
 echo [4/5] Checking downloaded GPU libraries...
-if exist "%APPDATA%\Whisper4Windows\gpu_libs\nvidia" (
+if exist "%APPDATA%\PortableWhisper\gpu_libs\nvidia" (
     echo ✓ GPU libraries folder exists
-    dir "%APPDATA%\Whisper4Windows\gpu_libs\nvidia" /b
+    dir "%APPDATA%\PortableWhisper\gpu_libs\nvidia" /b
     echo.
     echo Checking cuDNN DLLs...
-    dir "%APPDATA%\Whisper4Windows\gpu_libs\nvidia\cudnn\bin\*.dll" 2>nul
+    dir "%APPDATA%\PortableWhisper\gpu_libs\nvidia\cudnn\bin\*.dll" 2>nul
     if %errorlevel% equ 0 (
         echo ✓ cuDNN DLLs found
     ) else (
@@ -56,10 +56,10 @@ if exist "%APPDATA%\Whisper4Windows\gpu_libs\nvidia" (
     )
 ) else (
     echo ✗ GPU libraries NOT installed
-    echo   Location: %APPDATA%\Whisper4Windows\gpu_libs\nvidia
+    echo   Location: %APPDATA%\PortableWhisper\gpu_libs\nvidia
     echo.
     echo   ACTION REQUIRED:
-    echo   1. Run Whisper4Windows
+    echo   1. Run PortableWhisper
     echo   2. Go to Settings
     echo   3. Click "Install GPU Libraries" (~600MB download)
 )

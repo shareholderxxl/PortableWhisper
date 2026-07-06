@@ -1,4 +1,4 @@
-# Whisper4Windows Backend
+# PortableWhisper Backend
 
 Python FastAPI server for local speech-to-text processing.
 

@@ -1,16 +1,16 @@
-# 🎙️ Whisper4Windows
+# 🎙️ PortableWhisper
 
 **Your Voice, Transcribed Instantly - 100% Private, No Internet Required**
 
-Transform your voice into text anywhere on Windows with a simple keyboard shortcut. Whether you're writing emails, taking notes, or coding - Whisper4Windows puts professional speech-to-text at your fingertips, completely free and private.
+Transform your voice into text anywhere on Windows with a simple keyboard shortcut. Whether you're writing emails, taking notes, or coding - PortableWhisper puts professional speech-to-text at your fingertips, completely free and private.
 
-![Whisper4Windows in Action](images/demo-google-search.png)
-![Whisper4Windows in Action](images/settings-window.png)
+![PortableWhisper in Action](images/demo-google-search.png)
+![PortableWhisper in Action](images/settings-window.png)
 *Speak naturally, watch your words appear instantly in any application*
 
 ---
 
-## Why Whisper4Windows?
+## Why PortableWhisper?
 
 ### 🔒 **Completely Private**
 
@@ -45,7 +45,7 @@ Supports 99 languages with automatic detection. Switch between languages effortl
 
 ## ⚙️ Powerful Settings, Simple Interface
 
-Customize Whisper4Windows to work exactly how you want:
+Customize PortableWhisper to work exactly how you want:
 
 ![Configuration](images/Configuration-Panel.png)
 *Fine-tune your keyboard shortcuts, model quality, and processing device*
@@ -72,7 +72,7 @@ Customize Whisper4Windows to work exactly how you want:
 
 ### **Option 1: MSI Installer (Recommended)**
 
-1. **Download** - Get `Whisper4Windows_0.1.0_x64_en-US.msi` (~660MB)
+1. **Download** - Get `PortableWhisper_0.1.0_x64_en-US.msi` (~660MB)
 2. **Install** - Run the installer
 3. **Launch** - Start from Start Menu or Desktop
 4. **First Run** - Whisper model downloads automatically (~500MB, one-time)
@@ -223,13 +223,13 @@ Inspired by Superwhisper for Mac.
 
 ---
 
-**Ready to transform your workflow? Download Whisper4Windows now and experience the future of voice input on Windows.** 🎤
+**Ready to transform your workflow? Download PortableWhisper now and experience the future of voice input on Windows.** 🎤
 
 ---
 
 ## 📦 Modell-Installation
 
-Whisper4Windows wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten (~200 MB). Sie müssen das Modell einmalig manuell herunterladen und installieren.
+PortableWhisper wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten (~200 MB). Sie müssen das Modell einmalig manuell herunterladen und installieren.
 
 ### Standardmodell: Whisper 3 Large Turbo
 
@@ -246,7 +246,7 @@ Dieses Modell bietet eine hervorragende Kombination aus Genauigkeit und Geschwin
 pip install huggingface-hub
 
 # 2. In den App-Ordner wechseln
-cd C:\Pfad\zu\Whisper4Windows
+cd C:\Pfad\zu\PortableWhisper
 
 # 3. Modell herunterladen
 huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False
@@ -277,13 +277,13 @@ data/models/default/
 
 #### App starten
 
-Starten Sie `Whisper4Windows.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
+Starten Sie `PortableWhisper.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
 
 ### Modell ersetzen
 
 Sie können das Modell jederzeit durch ein anderes Whisper-Modell ersetzen:
 
-1. Schließen Sie Whisper4Windows
+1. Schließen Sie PortableWhisper
 2. Ersetzen Sie die Dateien in `data/models/default/`
 3. Starten Sie die App neu
 

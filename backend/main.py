@@ -1,5 +1,5 @@
 """
-Whisper4Windows Backend Server
+PortableWhisper Backend Server
 FastAPI server for local speech-to-text processing
 """
 
@@ -110,7 +110,7 @@ class HealthResponse(BaseModel):
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the FastAPI app"""
     logger.info("=" * 60)
-    logger.info("🚀 Whisper4Windows Backend Starting...")
+    logger.info("🚀 PortableWhisper Backend Starting...")
     logger.info("=" * 60)
     logger.info(f"Server: http://{BACKEND_HOST}:{BACKEND_PORT}")
     logger.info(f"API Docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="Whisper4Windows Backend",
+    title="PortableWhisper Backend",
     description="Local speech-to-text processing server",
     version="1.0.0",
     lifespan=lifespan
@@ -170,7 +170,7 @@ app.add_middleware(
 async def root():
     """Root endpoint"""
     return {
-        "app": "Whisper4Windows Backend",
+        "app": "PortableWhisper Backend",
         "version": "1.0.0",
         "status": "running"
     }

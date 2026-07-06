@@ -1,6 +1,6 @@
 name: Build Windows Portable
 
-# Phase 1: Baut Whisper4Windows als portables ZIP (kein Installer, kein UAC).
+# Phase 1: Baut PortableWhisper als portables ZIP (kein Installer, kein UAC).
 # Pipeline:
 #   1. Python-Backend mit PyInstaller (whisper-backend.spec) -> whisper-backend.exe
 #   2. Sidecar mit Target-Triple-Suffix nach src-tauri/binaries/ kopieren
@@ -128,7 +128,7 @@ jobs:
       - name: Verify main exe
         run: |
           # --no-bundle laesst den Cargo-Binary-Namen stehen (app.exe);
-          # der productName-Rename ("Whisper4Windows.exe") passiert nur beim Bundling.
+          # der productName-Rename ("PortableWhisper.exe") passiert nur beim Bundling.
           $exe = "frontend/src-tauri/target/release/app.exe"
           Write-Host "--- target/release .exe Dateien ---"
           Get-ChildItem frontend/src-tauri/target/release -Filter *.exe -ErrorAction SilentlyContinue | Format-Table Name,Length
@@ -140,7 +140,7 @@ jobs:
       # ============================================================
       # 4. Portables ZIP zusammenstellen
       #    Struktur nach Entpacken:
-      #      Whisper4Windows.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
+          #      PortableWhisper.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
       #      binaries/whisper-backend.exe
       #      data/models/default/         (leer - User legt Modell ab)
       #      data/temp/, data/logs/       (App-Daten, lokal im App-Ordner)
@@ -155,8 +155,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$stage/data/logs" | Out-Null
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
-          # Whisper4Windows.exe in das ZIP legen.
-          Copy-Item frontend/src-tauri/target/release/app.exe "$stage/Whisper4Windows.exe"
+          # PortableWhisper.exe in das ZIP legen.
+          Copy-Item frontend/src-tauri/target/release/app.exe "$stage/PortableWhisper.exe"
           Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe "$stage/binaries/whisper-backend.exe"
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
@@ -165,11 +165,11 @@ jobs:
           # Platzhalter-README im default-Modellordner, damit User weiss,
           # wohin die CTranslate2-Modell-Dateien gehören.
           Set-Content -Path "$stage/data/models/default/README.txt" -Value @"
-          Whisper4Windows - Standardmodell-Ordner
-          ========================================
+          PortableWhisper - Standardmodell-Ordner
+          =======================================
 
           Legen Sie die CTranslate2-Modell-Dateien (mind. config.json und
-          model.bin) in diesen Ordner, damit Whisper4Windows funktioniert.
+          model.bin) in diesen Ordner, damit PortableWhisper funktioniert.
 
           Empfohlenes Modell: Systran/faster-whisper-large-v3-turbo
           Download: https://huggingface.co/Systran/faster-whisper-large-v3-turbo
@@ -188,7 +188,7 @@ jobs:
             $sha = "${{ github.sha }}"
             $version = "dev-$($sha.Substring(0,7))"
           }
-          $zip = "${{ runner.temp }}/Whisper4Windows-$version-portable.zip"
+          $zip = "${{ runner.temp }}/PortableWhisper-$version-portable.zip"
 
           Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force
           Write-Host "ZIP erstellt: $zip"
@@ -202,7 +202,7 @@ jobs:
       - name: Upload portable ZIP artifact
         uses: actions/upload-artifact@v5
         with:
-          name: Whisper4Windows-portable
+          name: PortableWhisper-portable
           path: ${{ env.ZIP_PATH }}
           retention-days: 30
 

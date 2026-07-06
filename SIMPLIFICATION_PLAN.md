@@ -1,4 +1,4 @@
-# Whisper4Windows Simplification Plan
+# PortableWhisper Simplification Plan
 
 **Datum:** 2026-06-30  
 **Ziel:** Vereinfachung der App auf ein festes Modell, keine Downloads, reduzierte UI
@@ -573,11 +573,11 @@ Neue Struktur:
         <div class="section-title">Lizenzen</div>
         
         <div class="config-section">
-            <h3 class="config-section-title">Whisper4Windows</h3>
+            <h3 class="config-section-title">PortableWhisper</h3>
             <div class="config-row-description">
                 <p><strong>Lizenz:</strong> MIT License</p>
                 <p><strong>Fork attribution:</strong> Original project by Bader Aljabri.</p>
-                <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/Whisper4Windows" target="_blank">https://github.com/shareholderxxl/Whisper4Windows</a></p>
+                <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/PortableWhisper" target="_blank">https://github.com/shareholderxxl/PortableWhisper</a></p>
                 <p><strong>Vollständiger Lizenztext:</strong> Siehe <code>LICENSE</code> Datei</p>
             </div>
         </div>
@@ -755,7 +755,7 @@ function showMissingModelDialog() {
     dialog.innerHTML = `
         <div class="dialog-content">
             <h2>❌ Modell nicht gefunden</h2>
-            <p>Whisper4Windows benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
+            <p>PortableWhisper benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
             
             <h3>So installieren Sie das Modell:</h3>
             
@@ -996,7 +996,7 @@ Am Ende hinzufügen:
 ```markdown
 ## Modell-Installation
 
-Whisper4Windows wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten. Sie müssen das Modell manuell downloaden und installieren.
+PortableWhisper wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten. Sie müssen das Modell manuell downloaden und installieren.
 
 ### Standardmodell: Whisper 3 Large Turbo
 
@@ -1013,7 +1013,7 @@ Dieses Modell bietet eine hervorragende Kombination aus Genauigkeit und Geschwin
 pip install huggingface-hub
 
 # 2. Navigieren Sie zum App-Ordner
-cd C:\Pfad\zu\Whisper4Windows
+cd C:\Pfad\zu\PortableWhisper
 
 # 3. Laden Sie das Modell herunter
 huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False
@@ -1045,13 +1045,13 @@ data/models/default/
 
 #### App starten
 
-Starten Sie `Whisper4Windows.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
+Starten Sie `PortableWhisper.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
 
 ### Modell ersetzen
 
 Sie können das Modell jederzeit durch ein anderes Whisper-Modell ersetzen:
 
-1. Schließen Sie Whisper4Windows
+1. Schließen Sie PortableWhisper
 2. Ersetzen Sie die Dateien in `data/models/default/`
 3. Starten Sie die App neu
 
@@ -1096,9 +1096,9 @@ Wenn Sie beim Start die Fehlermeldung "Modell nicht gefunden" erhalten:
 **Datei:** `LICENSES.md` (neu)
 
 ```markdown
-# Whisper4Windows - Lizenzinformationen
+# PortableWhisper - Lizenzinformationen
 
-## Whisper4Windows
+## PortableWhisper
 
 **Lizenz:** MIT License
 
@@ -1152,7 +1152,7 @@ Danke an:
 
 ## Lizenz-Kompatibilität
 
-Diese Anwendung verwendet Bibliotheken unter verschiedenen Open-Source-Lizenzen (MIT, BSD-3-Clause, Apache-2.0). Alle verwendeten Lizenzen sind kompatibel mit der MIT License unter der Whisper4Windows veröffentlicht wird.
+Diese Anwendung verwendet Bibliotheken unter verschiedenen Open-Source-Lizenzen (MIT, BSD-3-Clause, Apache-2.0). Alle verwendeten Lizenzen sind kompatibel mit der MIT License unter der PortableWhisper veröffentlicht wird.
 
 ## Hinweis zur Modell-Nutzung
 
@@ -1268,7 +1268,7 @@ assert data["model_status"] in ["loaded", "available", "missing"]
 
 1. User lädt ZIP herunter (~200 MB)
 2. Entpackt ZIP in beliebigen Ordner
-3. Startet `Whisper4Windows.exe`
+3. Startet `PortableWhisper.exe`
 4. App zeigt Fehlerdialog: "Modell nicht gefunden"
 5. User folgt Anleitung im Dialog:
    - Option A: huggingface-cli download

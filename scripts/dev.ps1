@@ -1,7 +1,7 @@
-# Development script for Whisper4Windows
+# Development script for PortableWhisper
 # Runs both frontend (Tauri) and backend (Python) in development mode
 
-Write-Host "🚀 Starting Whisper4Windows Development Environment" -ForegroundColor Green
+Write-Host "🚀 Starting PortableWhisper Development Environment" -ForegroundColor Green
 
 # Check if Tauri CLI is available
 if (-not (Get-Command "cargo-tauri" -ErrorAction SilentlyContinue)) {

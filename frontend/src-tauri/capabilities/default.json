@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for Whisper4Windows",
+  "description": "Default permissions for PortableWhisper",
   "windows": ["main"],
   "permissions": [
     "core:default",

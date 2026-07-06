@@ -8,7 +8,7 @@ Die Tauri v2-Desktop-App wird korrekt initialisiert, konfiguriert und gebaut. En
 ## 1. Projektstruktur
 
 ```
-Whisper4Windows/
+PortableWhisper/
 ├── src/                          # Tauri-Frontend (React/TypeScript)
 │   ├── App.tsx                   # Hauptkomponente
 │   ├── App.css
@@ -52,7 +52,7 @@ Whisper4Windows/
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "Whisper4Windows",
+  "productName": "PortableWhisper",
   "version": "1.0.0",
   "identifier": "com.whisper4windows.app",
   "build": {
@@ -62,10 +62,10 @@ Whisper4Windows/
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "title": "Whisper4Windows",
+    "title": "PortableWhisper",
     "windows": [
       {
-        "title": "Whisper4Windows",
+        "title": "PortableWhisper",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -122,7 +122,7 @@ serde_json = "1"
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Standard-Berechtigungen für Whisper4Windows",
+  "description": "Standard-Berechtigungen für PortableWhisper",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -147,8 +147,8 @@ serde_json = "1"
 
 ```bash
 # Tauri 2 + React + TypeScript erstellen
-npm create tauri-app@latest Whisper4Windows -- --template react-ts
-cd Whisper4Windows
+npm create tauri-app@latest PortableWhisper -- --template react-ts
+cd PortableWhisper
 npm install
 ```
 

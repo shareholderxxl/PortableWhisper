@@ -1,10 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 # whisper-backend.spec
-# PyInstaller-Spezifikation für das Whisper4Windows-Backend (Sidecar).
+# PyInstaller-Spezifikation für das PortableWhisper-Backend (Sidecar).
 #
 # Phase-1-Vorgaben (siehe PHASE1_PLAN.md):
 #   - Modell wird NICHT eingebettet (datas=[]); Download beim ersten Start
-#     via huggingface_hub nach %LOCALAPPDATA%/Whisper4Windows/models/.
+#     via huggingface_hub nach %LOCALAPPDATA%/PortableWhisper/models/.
 #   - OHNE torch — faster-whisper läuft nativ über ctranslate2.
 #   - console=False: kein Konsolenfenster beim Sidecar-Start (unsichtbar).
 #     stdout/stderr-None-Guard liegt in runtime_hooks/path_redirect.py.

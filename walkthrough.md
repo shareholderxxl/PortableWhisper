@@ -1,6 +1,6 @@
-# Walkthrough - Whisper4Windows Configuration & Sidecar Fixes
+# Walkthrough - PortableWhisper Configuration & Sidecar Fixes
 
-This document describes the fixes and enhancements applied to the Whisper4Windows portable application.
+This document describes the fixes and enhancements applied to the PortableWhisper portable application.
 
 ## Changes Made
 
@@ -21,7 +21,7 @@ This document describes the fixes and enhancements applied to the Whisper4Window
 ### 3. Single-Instance Show Window Enhancement
 *   **File modified:** [lib.rs](file:///Y:/Austausch/whisper4windows-refactor/frontend/src-tauri/src/lib.rs)
     *   Updated the `tauri_plugin_single_instance` callback to call `window.show()` before `window.set_focus()`.
-    *   **Why?** Since the main window is hidden (instead of destroyed) when clicking the "X" button, double-clicking the `Whisper4Windows.exe` again while the app was running in the background did nothing visually because the window was focused but remained hidden. Now, double-clicking the executable again will correctly restore and show the hidden settings window.
+    *   **Why?** Since the main window is hidden (instead of destroyed) when clicking the "X" button, double-clicking the `PortableWhisper.exe` again while the app was running in the background did nothing visually because the window was focused but remained hidden. Now, double-clicking the executable again will correctly restore and show the hidden settings window.
 
 ### 4. German Fine-Tuned Model Options
 *   **File modified:** [index.html](file:///Y:/Austausch/whisper4windows-refactor/frontend/dist/index.html)
@@ -102,8 +102,8 @@ This document describes the fixes and enhancements applied to the Whisper4Window
 ## Validation & Testing
 
 1. **Manual Verification**:
-   - Inside `C:\Users\Enste\Downloads\Whisper4Windows-portable_v2\binaries`, we manually renamed `whisper-backend-x86_64-pc-windows-msvc.exe` to `whisper-backend.exe`.
-   - Launched the application from the console: `Whisper4Windows.exe`.
+   - Inside `C:\Users\Enste\Downloads\PortableWhisper-portable_v2\binaries`, we manually renamed `whisper-backend-x86_64-pc-windows-msvc.exe` to `whisper-backend.exe`.
+   - Launched the application from the console: `PortableWhisper.exe`.
    - **Result:** The application now launches successfully! It registers shortcuts, creates the tray icon, starts the backend server in CPU mode on port `8765`, and keeps running.
 
 ---
@@ -114,7 +114,7 @@ Commit and push all changes in the `Y:\Austausch\whisper4windows-refactor` repos
 1. The new zip package will be correctly structured.
 2. The backend binary in the zip will be named `whisper-backend.exe` automatically.
 3. The settings page will feature both new German model choices.
-4. If you close the settings window and double-click `Whisper4Windows.exe` again, it will correctly pop the window back up.
+4. If you close the settings window and double-click `PortableWhisper.exe` again, it will correctly pop the window back up.
 5. All app data will be stored locally inside a `data/` subdirectory inside the application directory!
 6. The F9 hotkey will stop recording instantly on the first press without requiring a double press.
 7. The lightweight 'tiny' model is pre-packaged inside the ZIP, making the app work offline immediately. You can download extra models using the new Model Management section.

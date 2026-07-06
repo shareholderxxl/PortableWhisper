@@ -27,7 +27,7 @@ backend/recordings/
 
 # Rust/Tauri
 frontend/src-tauri/target/
-!frontend/src-tauri/target/release/bundle/msi/Whisper4Windows_0.1.0_x64_en-US.msi
+!frontend/src-tauri/target/release/bundle/msi/PortableWhisper_0.1.0_x64_en-US.msi
 frontend/src-tauri/binaries/
 !frontend/src-tauri/binaries/.gitkeep
 frontend/node_modules/
@@ -68,7 +68,7 @@ logo_backup/
 *.so
 *.dylib
 
-Whisper4Windows_0.1.0_x64_en-US.msi
+PortableWhisper_0.1.0_x64_en-US.msi
 .dockerignore
 compose.yaml
 Dockerfile

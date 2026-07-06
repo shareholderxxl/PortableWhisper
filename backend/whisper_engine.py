@@ -148,7 +148,7 @@ def get_models_dir() -> Path:
     """Get the models directory.
 
     Liefert immer das zentrale Verzeichnis unter
-    %LOCALAPPDATA%/Whisper4Windows/models (runtime_hooks.path_redirect),
+    %LOCALAPPDATA%/PortableWhisper/models (runtime_hooks.path_redirect),
     sowohl im Source- als auch im gebündelten Modus.
     """
     from runtime_hooks.path_redirect import MODELS_DIR
