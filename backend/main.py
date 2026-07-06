@@ -61,20 +61,8 @@ is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 
-# Streaming state
-streaming_task: Optional[asyncio.Task] = None
+# Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
-partial_transcript: str = ""
-streaming_lock: Optional[asyncio.Lock] = None
-streaming_failed: bool = False
-streaming_buffer: List[np.ndarray] = []
-
-# VAD constants
-STREAMING_CHUNK_MAX_SECONDS = 25
-VAD_RMS_THRESHOLD = 0.02
-VAD_SILENCE_DURATION = 0.4
-VAD_MIN_SPEECH_DURATION = 1.0
-VAD_POLL_INTERVAL = 0.1
 
 
 # Pydantic models
@@ -332,22 +320,19 @@ async def load_model(request: StartRequest):
 
 @app.post("/start")
 async def start_recording(request: StartRequest):
-    """Start recording with VAD-based streaming transcription"""
-    global audio_capture, whisper_engine, is_recording, current_language
-    global streaming_task, model_load_task, partial_transcript, streaming_lock
-    global streaming_failed, streaming_buffer
+    """Start recording audio. Modell wird parallel im Hintergrund vorgeladen."""
+    global audio_capture, whisper_engine, is_recording, current_language, model_load_task
 
     try:
         if is_recording:
             return {"status": "error", "message": "Already recording"}
 
-        # Store language for use in worker + /stop
         current_language = None if request.language in (None, "auto") else request.language
-        logger.info(f"🎙️ Starting recording (streaming VAD transcription)")
+        logger.info(f"🎙️ Starting recording (Pre-Load + Batch)")
         logger.info(f"📋 Requested device: {request.device}")
         logger.info(f"🌐 Language: {current_language or 'auto-detect'}")
 
-        # Reuse existing engine if model/device match, otherwise create new one
+        # Engine erstellen oder wiederverwenden
         if whisper_engine is not None and \
            whisper_engine.model_size == request.model_size and \
            whisper_engine._original_device == request.device:
@@ -359,7 +344,7 @@ async def start_recording(request: StartRequest):
             )
             logger.info(f"✓ Whisper engine created (device: {whisper_engine.device})")
 
-        # Initialize audio capture
+        # Audio capture starten
         audio_capture = AudioCapture()
         audio_capture.clear_queue()
 
@@ -369,33 +354,30 @@ async def start_recording(request: StartRequest):
         else:
             logger.info(f"🎤 Using default microphone device")
 
-        audio_capture.start_recording(device_index=device_index)
-        await asyncio.sleep(0.1)
+        # BUG FIX: Rückgabewert von start_recording() prüfen!
+        if not audio_capture.start_recording(device_index=device_index):
+            logger.error("❌ Failed to start audio recording (microphone not available?)")
+            return {
+                "status": "error",
+                "message": "Mikrofon nicht verfügbar. Bitte prüfen Sie die Windows-Mikrofoneinstellungen."
+            }
 
+        await asyncio.sleep(0.1)
         is_recording = True
 
-        # Reset streaming state
-        partial_transcript = ""
-        streaming_failed = False
-        streaming_buffer = []
-        streaming_lock = asyncio.Lock()
+        # Modell parallel im Hintergrund laden (Geschwindigkeits-Trick!)
+        if not whisper_engine.is_loaded:
+            loop = asyncio.get_event_loop()
+            model_load_task = asyncio.create_task(_load_model_async(loop))
+            logger.info("📥 Model loading in background...")
+        else:
+            logger.info("✅ Model already loaded")
 
-        # Start model loading in background (lazy parallel)
-        loop = asyncio.get_event_loop()
-        model_load_task = asyncio.create_task(
-            _load_model_async(loop)
-        )
-
-        # Start streaming worker
-        streaming_task = asyncio.create_task(
-            _streaming_worker(loop)
-        )
-
-        logger.info("✅ Recording started (model loading in background, streaming active)")
+        logger.info("✅ Recording started! Speak now...")
 
         return {
             "status": "started",
-            "message": "Recording... Press Alt+T when done",
+            "message": "Recording... Press F9 when done",
             "model": request.model_size,
             "device": whisper_engine.device
         }
@@ -440,261 +422,104 @@ async def _load_model_async(loop: asyncio.AbstractEventLoop):
         model_loading_info = {"model": "", "status": ""}
 
 
-async def _streaming_worker(loop: asyncio.AbstractEventLoop):
-    """VAD-basierter Streaming-Worker. Läuft während is_recording == True."""
-    global is_recording, streaming_buffer, partial_transcript, streaming_failed
-
-    accumulated = []
-    in_speech = False
-    last_speech_time = time.time()
-
-    try:
-        while is_recording and not streaming_failed:
-            await asyncio.sleep(VAD_POLL_INTERVAL)
-
-            # Modell noch nicht bereit → Audio nur sammeln
-            if not whisper_engine or not whisper_engine.is_loaded:
-                chunk = audio_capture.drain_available()
-                if chunk is not None:
-                    accumulated.append(chunk)
-                continue
-
-            chunk = audio_capture.drain_available()
-            if chunk is not None:
-                accumulated.append(chunk)
-
-            if not accumulated:
-                continue
-
-            full_audio = np.concatenate(accumulated, axis=0)
-            total_duration = len(full_audio) / 16000
-
-            recent_samples = min(int(0.2 * 16000), len(full_audio))
-            recent_audio = full_audio[-recent_samples:]
-            rms = float(np.sqrt(np.mean(recent_audio ** 2)))
-
-            now = time.time()
-
-            if rms > VAD_RMS_THRESHOLD:
-                in_speech = True
-                last_speech_time = now
-            elif in_speech:
-                silence_duration = now - last_speech_time
-                if silence_duration >= VAD_SILENCE_DURATION:
-                    speech_duration = len(full_audio) / 16000
-                    if speech_duration >= VAD_MIN_SPEECH_DURATION:
-                        try:
-                            async with streaming_lock:
-                                result = await loop.run_in_executor(
-                                    None,
-                                    whisper_engine.transcribe_chunk,
-                                    full_audio.copy(),
-                                    current_language if current_language != "en" else None,
-                                    "translate" if current_language == "en" else "transcribe"
-                                )
-                            if result.get("success") and result.get("text"):
-                                partial_transcript += result["text"] + " "
-                        except Exception as e:
-                            logger.error(f"Streaming transcribe error: {e}")
-                            streaming_failed = True
-                            break
-
-                    accumulated = []
-                    in_speech = False
-                    last_speech_time = now
-                    continue  # Verhindert Hard-Cap mit veralteten Werten
-
-            # Hard-Cap: Whisper-Limit von 30s → bei 25s transkribieren
-            if total_duration >= STREAMING_CHUNK_MAX_SECONDS:
-                try:
-                    async with streaming_lock:
-                        result = await loop.run_in_executor(
-                            None,
-                            whisper_engine.transcribe_chunk,
-                            full_audio.copy(),
-                            current_language if current_language != "en" else None,
-                            "translate" if current_language == "en" else "transcribe"
-                        )
-                    if result.get("success") and result.get("text"):
-                        partial_transcript += result["text"] + " "
-                except Exception as e:
-                    logger.error(f"Streaming forced chunk error: {e}")
-                    streaming_failed = True
-                    break
-
-                accumulated = []
-                in_speech = False
-                last_speech_time = now
-    finally:
-        # Stellt sicher, dass remaining Audio auch bei Cancel verfügbar ist
-        if accumulated:
-            streaming_buffer = accumulated
-
-
 @app.post("/stop")
 async def stop_recording():
-    """Stop recording: streaming path if chunks were transcribed, else batch fallback"""
-    global is_recording, audio_capture, whisper_engine
-    global streaming_task, model_load_task, partial_transcript, streaming_failed
-    global streaming_buffer
+    """Stop recording and transcribe everything (Pre-Load + Batch)."""
+    global is_recording, audio_capture, whisper_engine, model_load_task
 
     try:
         if not is_recording:
             return {"status": "error", "message": "Not recording"}
 
-        logger.info("🛑 Stopping recording...")
+        logger.info("🛑 Stopping recording and transcribing...")
         is_recording = False
 
-        # Wait for streaming worker to finish (timeout 10s for in-flight transcribe)
-        if streaming_task:
-            streaming_task.cancel()
-            try:
-                await asyncio.wait_for(streaming_task, timeout=10.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
-            streaming_task = None
-
-        # Wait for model loading if still in progress
+        # Falls Modell noch lädt: darauf warten (max 30s)
         if model_load_task and not (whisper_engine and whisper_engine.is_loaded):
-            model_load_task.cancel()
+            logger.info("⏳ Waiting for model to finish loading...")
             try:
-                await asyncio.wait_for(model_load_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                await asyncio.wait_for(model_load_task, timeout=30.0)
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Model loading timed out")
             model_load_task = None
 
-        # Stop audio capture
         loop = asyncio.get_event_loop()
+
+        # Audio capture stoppen — BUG FIX: Rückgabewert nutzen!
+        audio_data = None
         if audio_capture:
-            await loop.run_in_executor(None, audio_capture.stop_recording)
+            audio_data = await loop.run_in_executor(None, audio_capture.stop_recording)
 
-        # Drain any remaining audio from queue + streaming_buffer
-        remaining_chunks = list(streaming_buffer)
-        final_chunk = audio_capture.drain_available() if audio_capture else None
-        if final_chunk is not None:
-            remaining_chunks.append(final_chunk)
-
-        # --- DECISION: streaming path or batch fallback? ---
-        use_streaming = not streaming_failed and bool(partial_transcript.strip())
-
-        if use_streaming:
-            logger.info("📝 Using streaming path — transcribing remaining buffer...")
-            final_text = partial_transcript.strip()
-
-            if remaining_chunks:
-                rest_audio = np.concatenate(remaining_chunks, axis=0)
-                rest_duration = len(rest_audio) / 16000
-                if rest_duration >= VAD_MIN_SPEECH_DURATION:
-                    # Ensure model is loaded
-                    if not whisper_engine.is_loaded:
-                        logger.info("📥 Loading model for rest flush...")
-                        success = await loop.run_in_executor(None, whisper_engine.load_model)
-                        if not success:
-                            logger.warning("⚠️ Model load failed, returning partial transcript")
-                            return {
-                                "status": "success",
-                                "text": final_text,
-                                "partial": True,
-                                "note": "Partial result (model load failed)"
-                            }
-
-                    async with streaming_lock:
-                        rest_result = await loop.run_in_executor(
-                            None,
-                            whisper_engine.transcribe_chunk,
-                            rest_audio,
-                            current_language if current_language != "en" else None,
-                            "translate" if current_language == "en" else "transcribe"
-                        )
-                    if rest_result.get("success") and rest_result.get("text"):
-                        final_text = (final_text + " " + rest_result["text"]).strip()
-
-            logger.info(f"✅ Streaming complete: \"{final_text[:100]}...\"" if len(final_text) > 100 else f"✅ Streaming complete: \"{final_text}\"")
-
+        if audio_data is None or len(audio_data) == 0:
+            logger.warning("No audio captured")
             return {
                 "status": "success",
-                "text": final_text,
-                "language": current_language or "auto",
-                "duration": 0,  # Not easily available in streaming mode
-                "streaming": True
+                "text": "",
+                "message": "No audio recorded"
             }
 
-        else:
-            # --- BATCH FALLBACK: transcribe all audio at once ---
-            logger.info("📼 Using batch fallback — transcribing full audio...")
+        logger.info(f"📼 Captured {len(audio_data) / 16000:.1f} seconds of audio")
 
-            # Build full audio from any remaining chunks
-            all_chunks = list(streaming_buffer)
-            if final_chunk is not None:
-                all_chunks.append(final_chunk)
-
-            audio_data = np.concatenate(all_chunks, axis=0) if all_chunks else None
-            if audio_data is None or len(audio_data) == 0:
-                logger.warning("No audio captured")
-                return {
-                    "status": "success",
-                    "text": "",
-                    "message": "No audio recorded"
-                }
-
-            logger.info(f"📼 Captured {len(audio_data) / 16000:.1f} seconds of audio")
-
-            if not whisper_engine.is_loaded:
-                global is_model_loading, model_loading_info
-                is_model_loading = True
-                model_loading_info = {
-                    "model": whisper_engine.model_size if whisper_engine else "default",
-                    "status": "Loading model..."
-                }
-                logger.info("📥 Loading Whisper model...")
-                try:
-                    success = await loop.run_in_executor(None, whisper_engine.load_model)
-                    if not success:
-                        is_model_loading = False
-                        return {"status": "error", "message": "Failed to load Whisper model"}
-                finally:
+        # Modell laden falls noch nicht geschehen (Fallback)
+        if not whisper_engine.is_loaded:
+            global is_model_loading, model_loading_info
+            is_model_loading = True
+            model_loading_info = {
+                "model": whisper_engine.model_size,
+                "status": "Loading model..."
+            }
+            logger.info("📥 Loading Whisper model...")
+            try:
+                success = await loop.run_in_executor(None, whisper_engine.load_model)
+                if not success:
                     is_model_loading = False
-                    model_loading_info = {"model": "", "status": ""}
+                    return {"status": "error", "message": "Failed to load Whisper model"}
+            finally:
+                is_model_loading = False
+                model_loading_info = {"model": "", "status": ""}
 
-            logger.info("🎙️ Transcribing full recording (batch)...")
+        # Task/Language bestimmen
+        if current_language == "en":
+            task = "translate"
+            whisper_language = None
+        else:
+            task = "transcribe"
+            whisper_language = current_language
 
-            if current_language == "en":
-                task = "translate"
-                whisper_language = None
-            else:
-                task = "transcribe"
-                whisper_language = current_language
+        logger.info(f"🎙️ Transcribing full recording...")
+        logger.info(f"   Language: {whisper_language or 'auto-detect'}, Task: {task}")
 
-            transcription_start = time.time()
-            result = await loop.run_in_executor(
-                None,
-                whisper_engine.transcribe_audio,
-                audio_data,
-                whisper_language,
-                task
-            )
-            transcription_time = time.time() - transcription_start
-            logger.info(f"⏱️ Batch transcription took: {transcription_time:.2f}s")
+        transcription_start = time.time()
+        result = await loop.run_in_executor(
+            None,
+            whisper_engine.transcribe_audio,
+            audio_data,
+            whisper_language,
+            task
+        )
+        transcription_time = time.time() - transcription_start
+        logger.info(f"⏱️ Transcription took: {transcription_time:.2f} seconds")
 
-            if not result["success"]:
-                return {
-                    "status": "error",
-                    "message": result.get('error', 'Transcription failed')
-                }
-
-            final_text = result["text"].strip()
-            logger.info(f"✅ Batch complete: \"{final_text[:100]}...\"" if len(final_text) > 100 else f"✅ Batch complete: \"{final_text}\"")
-
+        if not result["success"]:
+            logger.error(f"Transcription failed: {result.get('error')}")
             return {
-                "status": "success",
-                "text": final_text,
-                "language": result.get("language", "en"),
-                "duration": len(audio_data) / 16000,
-                "transcription_time": transcription_time,
-                "model": whisper_engine.model_size if whisper_engine else "default",
-                "device": whisper_engine.device if whisper_engine else "unknown",
-                "streaming": False
+                "status": "error",
+                "message": result.get('error', 'Transcription failed')
             }
+
+        final_text = result["text"].strip()
+        logger.info(f"✅ Transcription complete!")
+        logger.info(f"📝 Final text: {final_text[:100]}..." if len(final_text) > 100 else f"📝 Final text: {final_text}")
+
+        return {
+            "status": "success",
+            "text": final_text,
+            "language": result.get("language", "en"),
+            "duration": len(audio_data) / 16000,
+            "transcription_time": transcription_time,
+            "model": whisper_engine.model_size,
+            "device": whisper_engine.device
+        }
 
     except Exception as e:
         logger.error(f"❌ Failed to stop/transcribe: {e}")
@@ -706,25 +531,16 @@ async def stop_recording():
 @app.post("/cancel")
 async def cancel_recording():
     """Cancel recording without transcribing"""
-    global is_recording, audio_capture
-    global streaming_task, model_load_task, partial_transcript, streaming_buffer, streaming_failed
+    global is_recording, audio_capture, model_load_task
 
     try:
         if not is_recording:
             return {"status": "error", "message": "Not recording"}
 
         logger.info("❌ Canceling recording...")
-
         is_recording = False
 
-        if streaming_task:
-            streaming_task.cancel()
-            try:
-                await asyncio.wait_for(streaming_task, timeout=2.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
-            streaming_task = None
-
+        # Model loading task abbrechen falls noch laufend
         if model_load_task:
             model_load_task.cancel()
             try:
@@ -733,13 +549,10 @@ async def cancel_recording():
                 pass
             model_load_task = None
 
+        # Audio capture stoppen ohne Transkription
         if audio_capture:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, audio_capture.stop_recording)
-
-        partial_transcript = ""
-        streaming_buffer = []
-        streaming_failed = False
 
         logger.info("✅ Recording canceled")
 
