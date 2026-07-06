@@ -448,82 +448,87 @@ async def _streaming_worker(loop: asyncio.AbstractEventLoop):
     in_speech = False
     last_speech_time = time.time()
 
-    while is_recording:
-        await asyncio.sleep(VAD_POLL_INTERVAL)
+    try:
+        while is_recording and not streaming_failed:
+            await asyncio.sleep(VAD_POLL_INTERVAL)
 
-        if not whisper_engine or not whisper_engine.is_loaded:
+            # Modell noch nicht bereit → Audio nur sammeln
+            if not whisper_engine or not whisper_engine.is_loaded:
+                chunk = audio_capture.drain_available()
+                if chunk is not None:
+                    accumulated.append(chunk)
+                continue
+
             chunk = audio_capture.drain_available()
             if chunk is not None:
                 accumulated.append(chunk)
-            continue
 
-        chunk = audio_capture.drain_available()
-        if chunk is not None:
-            accumulated.append(chunk)
+            if not accumulated:
+                continue
 
-        if not accumulated:
-            continue
+            full_audio = np.concatenate(accumulated, axis=0)
+            total_duration = len(full_audio) / 16000
 
-        full_audio = np.concatenate(accumulated, axis=0)
-        total_duration = len(full_audio) / 16000
+            recent_samples = min(int(0.2 * 16000), len(full_audio))
+            recent_audio = full_audio[-recent_samples:]
+            rms = float(np.sqrt(np.mean(recent_audio ** 2)))
 
-        recent_samples = min(int(0.2 * 16000), len(full_audio))
-        recent_audio = full_audio[-recent_samples:]
-        rms = float(np.sqrt(np.mean(recent_audio ** 2)))
+            now = time.time()
 
-        now = time.time()
+            if rms > VAD_RMS_THRESHOLD:
+                in_speech = True
+                last_speech_time = now
+            elif in_speech:
+                silence_duration = now - last_speech_time
+                if silence_duration >= VAD_SILENCE_DURATION:
+                    speech_duration = len(full_audio) / 16000
+                    if speech_duration >= VAD_MIN_SPEECH_DURATION:
+                        try:
+                            async with streaming_lock:
+                                result = await loop.run_in_executor(
+                                    None,
+                                    whisper_engine.transcribe_chunk,
+                                    full_audio.copy(),
+                                    current_language if current_language != "en" else None,
+                                    "translate" if current_language == "en" else "transcribe"
+                                )
+                            if result.get("success") and result.get("text"):
+                                partial_transcript += result["text"] + " "
+                        except Exception as e:
+                            logger.error(f"Streaming transcribe error: {e}")
+                            streaming_failed = True
+                            break
 
-        if rms > VAD_RMS_THRESHOLD:
-            in_speech = True
-            last_speech_time = now
-        elif in_speech:
-            silence_duration = now - last_speech_time
-            if silence_duration >= VAD_SILENCE_DURATION:
-                speech_duration = len(full_audio) / 16000
-                if speech_duration >= VAD_MIN_SPEECH_DURATION:
-                    try:
-                        async with streaming_lock:
-                            result = await loop.run_in_executor(
-                                None,
-                                whisper_engine.transcribe_chunk,
-                                full_audio.copy(),
-                                current_language if current_language != "en" else None,
-                                "translate" if current_language == "en" else "transcribe"
-                            )
-                        if result.get("success") and result.get("text"):
-                            partial_transcript += result["text"] + " "
-                    except Exception as e:
-                        logger.error(f"Streaming transcribe error: {e}")
-                        streaming_failed = True
-                        return
+                    accumulated = []
+                    in_speech = False
+                    last_speech_time = now
+                    continue  # Verhindert Hard-Cap mit veralteten Werten
+
+            # Hard-Cap: Whisper-Limit von 30s → bei 25s transkribieren
+            if total_duration >= STREAMING_CHUNK_MAX_SECONDS:
+                try:
+                    async with streaming_lock:
+                        result = await loop.run_in_executor(
+                            None,
+                            whisper_engine.transcribe_chunk,
+                            full_audio.copy(),
+                            current_language if current_language != "en" else None,
+                            "translate" if current_language == "en" else "transcribe"
+                        )
+                    if result.get("success") and result.get("text"):
+                        partial_transcript += result["text"] + " "
+                except Exception as e:
+                    logger.error(f"Streaming forced chunk error: {e}")
+                    streaming_failed = True
+                    break
 
                 accumulated = []
                 in_speech = False
                 last_speech_time = now
-
-        if total_duration >= STREAMING_CHUNK_MAX_SECONDS:
-            try:
-                async with streaming_lock:
-                    result = await loop.run_in_executor(
-                        None,
-                        whisper_engine.transcribe_chunk,
-                        full_audio.copy(),
-                        current_language if current_language != "en" else None,
-                        "translate" if current_language == "en" else "transcribe"
-                    )
-                if result.get("success") and result.get("text"):
-                    partial_transcript += result["text"] + " "
-            except Exception as e:
-                logger.error(f"Streaming forced chunk error: {e}")
-                streaming_failed = True
-                return
-
-            accumulated = []
-            in_speech = False
-            last_speech_time = now
-
-    if accumulated:
-        streaming_buffer = accumulated
+    finally:
+        # Stellt sicher, dass remaining Audio auch bei Cancel verfügbar ist
+        if accumulated:
+            streaming_buffer = accumulated
 
 
 @app.post("/stop")
