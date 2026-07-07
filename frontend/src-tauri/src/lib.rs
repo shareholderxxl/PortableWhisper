@@ -1115,13 +1115,16 @@ pub fn run() {
 
             // Smart Pre-Load: Start async model load on app startup
             log::info!("📥 Smart Pre-Load: Starting async model load on startup...");
-            let app_handle_preload = app.handle().clone();
-            let state_preload: tauri::State<AppState> = app.state();
+            // Arcs klonen (sind 'static) statt tauri::State (borrow von app)
+            let state_preload = app.state::<AppState>();
+            let selected_model = state_preload.selected_model.clone();
+            let selected_device = state_preload.selected_device.clone();
+            let selected_language = state_preload.selected_language.clone();
             tauri::async_runtime::spawn(async move {
                 // Get settings from AppState
-                let model_size = state_preload.selected_model.lock().await.clone();
-                let device = state_preload.selected_device.lock().await.clone();
-                let language = state_preload.selected_language.lock().await.clone();
+                let model_size = selected_model.lock().await.clone();
+                let device = selected_device.lock().await.clone();
+                let language = selected_language.lock().await.clone();
 
                 let lang_value = if language == "auto" {
                     serde_json::Value::Null
