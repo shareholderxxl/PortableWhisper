@@ -34,20 +34,27 @@
 * **Sprachen:** 25 EU-Sprachen (inkl. Deutsch, Englisch, Französisch, etc.)
 * **Automatische Spracherkennung:** Ja (erkennt Sprache automatisch)
 * **Lizenz:** CC-BY-4.0 (kommerziell nutzbar)
-* **Format:** ONNX (encoder.onnx + decoder.onnx + vocab.txt)
-* **Größe:** ~1,2 GB (fp32), ~600 MB (int8 quantisiert verfügbar)
+* **Format:** ONNX (encoder-model.int4.onnx + decoder_joint-model.int8.onnx + vocab.txt)
+* **Größe:** 391 MB (int4, Default), 670 MB (int8 Fallback), ~2,55 GB (fp32)
 
 ### 2.2 ONNX-Modell-Varianten
 
-| Variante | HF Repo | Größe | Qualität | Bemerkung |
-|----------|---------|-------|----------|-----------|
-| fp32 (Standard) | `istupakov/parakeet-tdt-0.6b-v3-onnx` | ~1,2 GB | Beste | Empfohlen für CPU |
-| fp16 | `ako101/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16` | ~600 MB | Sehr gut | Kleinere Binary |
-| int8 | `nasedkinpv/parakeet-tdt-0.6b-v3-onnx-int8` | ~350 MB | Gut | Für ressourcenlimitierte Geräte |
-| int4 | `efederici/parakeet-tdt-0.6b-v3-onnx-int4` | ~200 MB | Akzeptabel | Experimentell |
+| Variante | HF Repo | Größe | WER (Englisch) | Bemerkung |
+|----------|---------|-------|----------------|-----------|
+| **int4 hybrid** ⭐ | `efederici/parakeet-tdt-0.6b-v3-onnx-int4` | **391 MB** | **1,67%** | **Default — beste Size/Speed/Quality** |
+| int8 (istupakov) | `istupakov/parakeet-tdt-0.6b-v3-onnx` | 670 MB | 1,67% | Fallback, breiteste GPU-Kompatibilität |
+| fp32 | `istupakov/parakeet-tdt-0.6b-v3-onnx` | ~2,55 GB | 1,72% | Maximale Präzision, unnötig groß |
+| fp16 | `ako101/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16` | ~600 MB | — | Nur für sherpa-onnx optimiert |
 
-**Empfehlung:** fp32 für maximale Qualität (Modell lädt via onnx-asr automatisch
-von HF, sobald `load_model("nemo-parakeet-tdt-0.6b-v3")` aufgerufen wird).
+> **Benchmark (LibriSpeech test-clean, aus efederici Model Card):**
+> Alle drei Varianten (fp32, int8, int4) erreichen praktisch identische WER
+> (~1,67%). int4 ist überraschend **17% schneller** als int8 und hat **halbe
+> Degradation** bei 39% kleinerer Größe. Der int4-Hybrid-Ansatz quantisiert
+> nur große Line/MatMul-Layer (87,5% der Gewichte), während kleine Conv-Layer
+> in fp32 bleiben.
+
+**Entscheidung: int4 als Default für Phase 2A.** Fallback auf int8 per
+Konfigurationsparameter (nur eine Zeile Code-Änderung).
 
 ---
 
@@ -68,8 +75,11 @@ von HF, sobald `load_model("nemo-parakeet-tdt-0.6b-v3")` aufgerufen wird).
 ```python
 import onnx_asr
 
-# Modell laden (einmalig, lädt automatisch von HuggingFace)
-model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3")
+# Modell aus lokalem Verzeichnis laden (primär — portabel, offline):
+model = onnx_asr.load_model("/pfad/zu/data/models/default")
+
+# Modell aus HuggingFace laden (Fallback — falls lokal nicht vorhanden):
+model = onnx_asr.load_model("efederici/parakeet-tdt-0.6b-v3-onnx-int4")
 
 # Transkription (Audio als numpy float32 Array, 16kHz, mono)
 result = model.recognize(audio_array)
@@ -113,6 +123,13 @@ werden muss.
 """
 Parakeet TDT STT Engine
 Handles model loading and transcription using onnx-asr + Parakeet TDT v3
+
+Modell-Speicherort (wie Phase 1): data/models/default/
+  ├── encoder-model.int4.onnx       (373 MB, int4 Encoder)
+  ├── decoder_joint-model.int8.onnx  (18 MB, int8 Decoder+Joint)
+  ├── nemo128.int8.onnx              (41 KB, Mel-Preprocessor)
+  ├── vocab.txt                      (92 KB, SentencePiece)
+  └── config.json                    (97 B)
 """
 import logging
 import numpy as np
@@ -129,13 +146,20 @@ except ImportError as e:
     ONNX_ASR_AVAILABLE = False
     logger.warning(f"⚠️ onnx-asr not available: {e}")
 
+# Dateien, die ein gültiges lokales Parakeet-Modell enthalten muss.
+_REQUIRED_PARAKEET_FILES = [
+    "encoder-model.int4.onnx",      # Encoder (int4 oder int8)
+    "decoder_joint-model.int8.onnx", # Decoder + Joint
+    "vocab.txt",
+]
+
 
 class ParakeetEngine:
     """Parakeet TDT speech-to-text engine via onnx-asr"""
 
     def __init__(
         self,
-        model_name: str = "nemo-parakeet-tdt-0.6b-v3",
+        model_name: str = "default",
         device: str = "auto",
     ):
         self.model_name = model_name
@@ -154,19 +178,56 @@ class ParakeetEngine:
             return True
 
         try:
-            logger.info(f"📥 Loading Parakeet TDT model: {self.model_name}")
-            self.model = onnx_asr.load_model(self.model_name)
-            self.is_loaded = True
-            logger.info(f"✅ Parakeet model loaded successfully")
-            return True
+            # ── Strategie 1: Lokales Modell aus data/models/default/ ──
+            default_dir = self._get_default_models_dir()
+            if default_dir and self._is_local_model_present(default_dir):
+                logger.info(f"📥 Loading Parakeet from local directory: {default_dir}")
+                self.model = onnx_asr.load_model(str(default_dir))
+                self.is_loaded = True
+                logger.info(f"✅ Parakeet model loaded (local, offline)")
+                return True
+
+            # ── Strategie 2: HF-Fallback (Auto-Download) ──
+            # Reihenfolge: int4 → int8 → fp32
+            model_candidates = [
+                "efederici/parakeet-tdt-0.6b-v3-onnx-int4",   # int4 (bevorzugt)
+                "istupakov/parakeet-tdt-0.6b-v3-onnx",          # int8 (fallback)
+            ]
+            for hf_name in model_candidates:
+                try:
+                    logger.info(f"📥 Loading Parakeet from HuggingFace: {hf_name}")
+                    self.model = onnx_asr.load_model(hf_name)
+                    self.is_loaded = True
+                    logger.info(f"✅ Parakeet model loaded (HF: {hf_name})")
+                    return True
+                except Exception as e:
+                    logger.warning(f"⚠️ {hf_name} failed: {e}, trying next...")
+
+            logger.error("❌ All model loading strategies failed")
+            return False
+
         except Exception as e:
             logger.error(f"❌ Failed to load model: {e}")
             return False
 
+    def _get_default_models_dir(self) -> Optional[Path]:
+        """Liefert data/models/default/ — identisch zu Phase 1 WhisperEngine."""
+        try:
+            from runtime_hooks.path_redirect import DEFAULT_MODELS_DIR
+            return DEFAULT_MODELS_DIR
+        except ImportError:
+            return None
+
+    def _is_local_model_present(self, model_dir: Path) -> bool:
+        """Prüft ob alle erforderlichen Parakeet-Dateien vorhanden sind."""
+        return all((model_dir / f).exists() for f in _REQUIRED_PARAKEET_FILES)
+
     def is_model_downloaded(self, model_name: str = None) -> bool:
-        # onnx-asr nutzt HF-Cache — Prüfung ob Modell vorhanden
-        # (Implementierung folgt)
-        return True  # Vereinfacht für ersten Entwurf
+        """Prüft ob das Modell lokal verfügbar ist (für /health Endpoint)."""
+        default_dir = self._get_default_models_dir()
+        if default_dir:
+            return self._is_local_model_present(default_dir)
+        return False
 
     def transcribe_audio(
         self,
@@ -221,7 +282,7 @@ whisper_engine = WhisperEngine(model_size="default", device="auto")
 
 # NEU (Phase 2):
 from parakeet_engine import ParakeetEngine
-whisper_engine = ParakeetEngine(model_name="nemo-parakeet-tdt-0.6b-v3", device="auto")
+whisper_engine = ParakeetEngine(model_name="default", device="auto")
 ```
 
 Alle anderen Endpunkte (`/start`, `/stop`, `/health`, `/load_model_async`)
@@ -267,29 +328,55 @@ minimale Diff-Größe), ist aber eine `ParakeetEngine`-Instanz.
 
 ## 5. Pfad-Management
 
-### 5.1 Modell-Speicherort
+### 5.1 Modell-Speicherort: `data/models/default/` (wie Phase 1)
 
-Parakeet ONNX-Modelle werden von `onnx-asr` automatisch im HuggingFace-Cache
-gespeichert. Dieser wird bereits durch `path_redirect.py` umgeleitet:
+Das Parakeet-Modell wird — identisch zum Whisper-Modell in Phase 1 — im
+portablen Verzeichnis `data/models/default/` neben der `.exe` abgelegt.
+Dies gewährleistet:
+
+* **Offline-Betrieb:** Kein Internet/Download nötig
+* **Portabilität:** Alles liegt neben der `.exe` (USB-Stick-tauglich)
+* **Konsistenz:** Gleicher Pfad wie Phase 1, keine UI-Änderungen nötig
+* **Updates:** Neue App-Version = nur `.exe` austauschen, Modell bleibt
 
 ```
-%LOCALAPPDATA%/PortableWhisper/models/
-  └── models--istupakov--parakeet-tdt-0.6b-v3-onnx/
-      └── snapshots/
-          └── <hash>/
-              ├── encoder.onnx
-              ├── decoder.onnx
-              └── vocab.txt
+PortableWhisper/
+├── PortableWhisper.exe
+├── binaries/
+│   └── whisper-backend.exe
+└── data/
+    └── models/
+        └── default/                         ← Parakeet int4 Dateien
+            ├── encoder-model.int4.onnx       (373 MB)
+            ├── decoder_joint-model.int8.onnx  (18 MB)
+            ├── nemo128.int8.onnx              (41 KB)
+            ├── vocab.txt                      (92 KB)
+            └── config.json                    (97 B)
 ```
 
-Keine Änderungen an `path_redirect.py` nötig — die HF-Cache-Umleitung
-(HF_HOME, HUGGINGFACE_HUB_CACHE) ist bereits aktiv.
+### 5.2 Modell-Lade-Strategie
 
-### 5.2 Option: Manuelles Modell (wie Phase 1 "default")
+`ParakeetEngine.load_model()` prüft in folgender Reihenfolge:
 
-Für Offline-Nutzung ohne Internet beim ersten Start kann das Modell auch
-vorab nach `data/models/parakeet/` kopiert werden. `parakeet_engine.py`
-prüft dann diesen Pfad zuerst, bevor der HF-Cache genutzt wird.
+1. **Lokales Verzeichnis** (`data/models/default/`):
+   * Prüft ob `encoder-model.int4.onnx` + `decoder_joint-model.int8.onnx` +
+     `vocab.txt` vorhanden sind
+   * Falls ja → `onnx_asr.load_model(str(default_dir))` (offline)
+2. **HuggingFace-Fallback** (falls lokal nichts gefunden):
+   * `efederici/parakeet-tdt-0.6b-v3-onnx-int4` (int4, 391 MB)
+   * `istupakov/parakeet-tdt-0.6b-v3-onnx` (int8, 670 MB, letzter Fallback)
+
+### 5.3 Keine Änderungen an `path_redirect.py`
+
+Die bereits aktiven Umleitungen reichen aus:
+```python
+DEFAULT_MODELS_DIR = APP_DIR / "models" / "default"  # bereits definiert
+os.environ["HF_HOME"] = str(MODELS_DIR)              # bereits gesetzt
+os.environ["HUGGINGFACE_HUB_CACHE"] = str(MODELS_DIR) # bereits gesetzt
+```
+
+`ParakeetEngine` nutzt `DEFAULT_MODELS_DIR` aus `path_redirect.py` — derselbe
+Pfad, den `WhisperEngine` in Phase 1 nutzt.
 
 ---
 
@@ -305,22 +392,23 @@ git checkout -b phase-2
 ```bash
 cd backend
 pip install onnx-asr[cpu,hub]
-# Test:
-python -c "import onnx_asr; m = onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3'); print('OK')"
+# Test (mit lokalem Modell):
+python -c "import onnx_asr; m = onnx_asr.load_model('data/models/default'); print('OK')"
 ```
 
 ### Schritt 3: `parakeet_engine.py` erstellen
 * Neue Datei wie in Abschnitt 4.1 beschrieben.
 * Unit-Tests: Audio-Array rein → Text raus.
+* Lokales Pfad-Laden aus `data/models/default/` testen.
 
 ### Schritt 4: `main.py` anpassen
 * Import von `parakeet_engine` statt `whisper_engine`.
-* `/health`-Endpoint: `model_status`-Logik anpassen (kein `is_model_downloaded`
-  für HF-Cache-Modelle nötig).
+* `/health`-Endpoint: nutzt `ParakeetEngine.is_model_downloaded()` (prüft
+  lokale Dateien in `data/models/default/`).
 
 ### Schritt 5: Smart Pre-Load anpassen
 * `/load_model_async` nutzt bereits die gemeinsame Schnittstelle.
-* Es muss nur die Modell-Referenz geändert werden.
+* ParakeetEngine lädt aus `data/models/default/` (offline) oder HF (fallback).
 
 ### Schritt 6: PyInstaller Spec aktualisieren
 * `hiddenimports` und `binaries` wie in Abschnitt 4.4.
@@ -328,18 +416,22 @@ python -c "import onnx_asr; m = onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3')
 
 ### Schritt 7: Frontend anpassen (minimal)
 * `index.html`: Modell-Auswahl-Dropdown entfernen oder auf "Parakeet" fixieren.
-* `lib.rs`: `selected_model` Default auf `"nemo-parakeet-tdt-0.6b-v3"`.
+* `lib.rs`: `selected_model` Default bleibt `"default"` (gleicher Pfad wie Phase 1).
 
-### Schritt 8: UI-Geräteauswahl reaktivieren (Phase 2B)
+### Schritt 8: Modell im portable ZIP verteilen
+* int4-Modell-Dateien (391 MB) nach `data/models/default/` kopieren.
+* Entweder im Build-Workflow (GitHub Actions) oder manuell durch User.
+
+### Schritt 9: UI-Geräteauswahl reaktivieren (Phase 2B)
 * `index.html`: Auto/CPU/GPU Dropdown sichtbar machen.
 * `lib.rs`: Device-Auswahl an Backend weitergeben.
 * Backend: `onnxruntime-directml` statt `onnxruntime` installieren.
 
-### Schritt 9: Build via GitHub Actions
+### Schritt 10: Build via GitHub Actions
 * `.github/workflows/build-windows.yml`: `requirements.txt` neu installieren.
 * PyInstaller spec in CI aktualisieren.
 
-### Schritt 10: Benchmark & Validierung
+### Schritt 11: Benchmark & Validierung
 * Gleiche Test-Audios mit Phase 1 (Whisper) und Phase 2 (Parakeet) transkribieren.
 * WER, Latenz, RAM-Verbrauch vergleichen.
 * Erwartung: 30-40× schnellere Transkription, bessere deutsche Qualität.
@@ -351,11 +443,11 @@ python -c "import onnx_asr; m = onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3')
 | Risiko | Wahrscheinlichkeit | Auswirkung | Mitigation |
 |--------|-------------------|------------|------------|
 | onnx-asr inkompatibel mit PyInstaller | Mittel | Hoch | Frühzeitig PyInstaller-Test, `--collect-all onnxruntime` |
-| Parakeet ONNX-Modell zu groß für Bundle | Niedrig | Mittel | int8-Quantisierung verwenden (~350 MB) |
+| onnx-asr kann nicht aus lokalem Pfad laden | Mittel | Hoch | Direkt via ONNX Runtime laden (onnx-asr Source als Referenz) |
+| int4 `MatMulNBits` auf mancher Hardware unsupported | Niedrig | Mittel | Fallback auf int8 (`istupakov/...-onnx`, nur eine Zeile) |
 | onnx-asr API ändert sich | Niedrig | Mittel | Version pinnen (`onnx-asr==0.11.0`) |
-| DirectML auf Ziel-Hardware nicht verfügbar | Mittel | Niedrig | Graceful Fallback auf CPU (bereits implementiert) |
+| DirectML auf Ziel-Hardware nicht verfügbar (Phase 2B) | Mittel | Niedrig | Graceful Fallback auf CPU (bereits implementiert) |
 | Deutsche Qualität schlechter als erwartet | Niedrig | Hoch | A/B-Test mit Phase 1, Rollback möglich |
-| HF-Cache-Download beim ersten Start fehlschlägt | Mittel | Mittel | Modell vorab in ZIP bundleln (Offline-Modus) |
 
 ---
 
@@ -377,11 +469,11 @@ Phase 2 wird auf separatem Branch entwickelt. Bei Problemen:
 |---------|---------|
 | Schritt 1-3: Engine + Tests | 1 Tag |
 | Schritt 4-5: main.py Integration | 0,5 Tag |
-| Schritt 6: PyInstaller Spec | 0,5 Tag |
-| Schritt 7: Frontend minimal | 0,5 Tag |
-| Schritt 8: DirectML (optional) | 1 Tag |
-| Schritt 9-10: CI + Benchmark | 1 Tag |
-| **Gesamt** | **3,5 - 4,5 Tage** |
+| Schritt 6-7: PyInstaller + Frontend | 0,5 Tag |
+| Schritt 8: Modell ins ZIP integrieren | 0,5 Tag |
+| Schritt 9: DirectML (optional) | 1 Tag |
+| Schritt 10-11: CI + Benchmark | 1 Tag |
+| **Gesamt** | **4 - 5 Tage** |
 
 ---
 
@@ -389,7 +481,9 @@ Phase 2 wird auf separatem Branch entwickelt. Bei Problemen:
 
 * onnx-asr: https://github.com/istupakov/onnx-asr
 * Parakeet TDT v3 (Original): https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
-* Parakeet TDT v3 (ONNX): https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx
+* Parakeet TDT v3 **int4** (Default): https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4
+* Parakeet TDT v3 **int8** (Fallback): https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx
 * sherpa-onnx (Streaming-Alternative): https://github.com/k2-fsa/sherpa-onnx
 * onnxruntime-directml: https://pypi.org/project/onnxruntime-directml/
 * Parakeet Technical Report: https://arxiv.org/abs/2509.14128
+* Benchmark-Quelle (int4 vs int8 vs fp32): https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4
