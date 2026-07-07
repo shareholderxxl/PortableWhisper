@@ -96,10 +96,9 @@ and code templates — consult the matching one before touching that area.
 ## Current roadmap state
 
 Phase 1 (Zero-Dependency & Portability) is **in implementation** on branch
-`phase-1`. See `PHASE1_PLAN.md` for the full step list. Implemented decisions:
-- Default model stays `small`; `large-v3-turbo` is the quality option.
-  `primeline/whisper-large-v3-german` is **deferred** — it's in HF Transformers
-  format but faster-whisper needs CTranslate2 (see `whisper_engine.py` note).
+`phase-1-2`. See `PHASE1_PLAN.md` for the full step list. Implemented decisions:
+- Default model is `default` (manually placed CTranslate2 model in
+  `data/models/default/`); `large-v3-turbo` is the quality option.
 - Backend port = **8765** (constants `BACKEND_HOST`/`BACKEND_PORT` in `main.py`).
 - PyInstaller **without torch** (ctranslate2 only); spec = `backend/whisper-backend.spec`.
 - Build artifact: **portable ZIP only** (no MSI/NSIS, no UAC) via GitHub Actions.
@@ -109,9 +108,22 @@ Phase 1 (Zero-Dependency & Portability) is **in implementation** on branch
   exit path (`lib.rs`); sidecar permission via structured entries in
   `capabilities/default.json` (`shell:allow-spawn`/`allow-execute`). The
   `plugins.shell.scope` field in `tauri.conf.json` is INVALID in Tauri 2.
+- Smart Pre-Load: Model loads async at app startup (`/load_model_async` endpoint).
+- Default hotkey: **F9**; default language: **de** (German).
+
+Phase 2 (Parakeet TDT v3 + onnx-asr) is **planned** — full migration plan in
+`PHASE2_PLAN.md`. Key decisions:
+- Engine: `onnx-asr` (pure Python, MIT license) replaces `faster-whisper`.
+- Model: `nvidia/parakeet-tdt-0.6b-v3` (ONNX, 25 EU languages, 600M params).
+- Expected speedup: **36× RTFx** on CPU vs ~0,3-1× with Whisper.
+- DirectML/NPU (Phase 2B) is optional — CPU already fast enough.
+- XDNA 2 NPU support via DirectML is experimental (AMD drivers still maturing).
+- Streaming (Phase 2C) via sherpa-onnx only if live text is needed.
 
 ## Key docs
 
 - `KONZEPT.md` — master 3-phase prompt (read first)
+- `PHASE1_PLAN.md` — Phase 1 detailed steps
+- `PHASE2_PLAN.md` — Phase 2 migration plan (faster-whisper → Parakeet TDT v3)
 - `WINDOWS-ABHAENGIGKEITEN.md` — Windows build toolchain
 - `INSTALLATION.md`, `BUILD.md`, `TECHNICAL.md`, `DEVELOPMENT_MODE.md`

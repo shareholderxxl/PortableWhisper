@@ -2,12 +2,14 @@
 
 > **Status (Phase 1):** In Umsetzung auf Branch `phase-1`. Details und
 > Entscheidungen siehe `PHASE1_PLAN.md` und `AGENTS.md`.
+> **Status (Phase 2):** Geplant — Migrationsplan in `PHASE2_PLAN.md`.
+> Phase 2 wechselt von Whisper (faster-whisper/CTranslate2) zu
+> NVIDIA Parakeet TDT v3 via `onnx-asr` (ONNX Runtime).
 > Wichtige Abweichungen vom Original-Prompt:
-> - Standard-Modell bleibt `small`; `primeline/whisper-large-v3-german` ist
->   zurückgestellt (liegt im Transformers-Format vor, faster-whisper braucht
->   CTranslate2) — siehe `whisper_engine.py`.
+> - Standard-Modell (Phase 1): `default` (manuell in `data/models/default/`).
+> - Standard-Modell (Phase 2): `parakeet-tdt-0.6b-v3` (ONNX, 25 Sprachen).
 > - Backend-Port: 8765 (statt 8000).
-> - PyInstaller **ohne torch** (nur ctranslate2).
+> - PyInstaller **ohne torch** (Phase 1: ctranslate2, Phase 2: onnxruntime).
 > - Build-Artefakt: nur portables ZIP (kein MSI/NSIS), gebaut via GitHub Actions.
 
 ## Rolle & Ziel
@@ -30,31 +32,68 @@ Wir arbeiten das Projekt strikt in drei aufeinander aufbauenden Phasen ab. Begin
 
 ---
 
-## PHASE 2: ONNX Runtime & Windows NPU-Beschleunigung (Mittelfristig)
+## PHASE 2: Parakeet TDT v3 + onnx-asr (Mittelfristig)
 
 > **Entwicklung:** Die Umsetzung erfolgt auf einem **separaten GitHub-Branch** (z. B. `phase-2`).  
 > **Wichtig:** Phase 2 wird NICHT in `phase-1` entwickelt. Der Branch `phase-2` wird vom `main`-Branch (oder dem stabilen Stand vor Phase-1-Änderungen) abgezweigt.
+> **Details:** Siehe `PHASE2_PLAN.md` für den vollständigen Migrationsplan.
 
-1. **Performance-Optimierung:** Um Laptops ohne NVIDIA-Grafikkarte (wie z. B. mit AMD Radeon oder Intel Iris Xe) optimal zu unterstützen, stellen wir das Backend von PyTorch auf `onnxruntime-directml` um.
-2. **NPU-Ansteuerung:** Konfiguriere den DirectML-Execution-Provider (`DmlExecutionProvider`), um die NPUs von Intel (Core Ultra) und AMD (Ryzen AI) unter Windows 11 nativ und extrem stromsparend anzusprechen.
-3. **Modell-Wechsel (erster Schritt):** Das primäre ONNX-Modell ist `amd/whisper-large-turbo-onnx-npu`. Dieses ist speziell für AMD-NPU-Beschleunigung optimiert und enthält eine Vitis-AI-kompatible Encoder-Variante (`.rai`). Datei-Struktur:
-   * `decoder_model.onnx` (691 MB)
-   * `encoder_model.onnx` (2,73 MB) + `encoder_model.onnx.data` (2,55 GB)
-   * Optional: `ggml-large-v3-turbo-encoder-vitisai.rai` (743 MB) für AMD-NPU
-4. **UI-Geräteauswahl für volle Benutzerkontrolle:**
-   * Erweitere den Einstellungsbereich in der UI unter „Processing Device“ um **vier Optionen**: **Auto**, **CPU**, **GPU** und **NPU**.
-   * Die Auswahl wird wie folgt im Backend umgesetzt:
-     * **Auto:** Wählt automatisch die effizienteste Hardware (NPU > GPU > CPU).
-     * **CPU:** Erzwingt die Ausführung auf dem Hauptprozessor (`CPUExecutionProvider`).
-     * **GPU:** Erzwingt die Ausführung auf der Grafikkarte (z. B. Radeon 860M) über DirectML.
-     * **NPU:** Erzwingt die Ausführung auf der NPU (z. B. AMD Ryzen AI) über DirectML.
-   * **UI-Code:** Die Geräteauswahl existiert bereits in Phase 1 als UI-Element in `index.html` (Auto/GPU/CPU). In Phase 2 wird dieses Element **wieder aktiviert** und um die Option **NPU** erweitert.
-5. **Modell-Austauschbarkeit (optional / später umsetzen):**
-   > **Hinweis:** Dieser Punkt ist optional und wird erst in einem späteren Schritt von Phase 2 umgesetzt. Im ersten Schritt wird ausschließlich das AMD-Modell unterstützt.
-   * Der Backend-Code soll langfristig in der Lage sein, zwischen verschiedenen ONNX-Modellen zu wechseln, da das Datei-Layout variieren kann.
-   * **Aktuell unterstützt:** `amd/whisper-large-turbo-onnx-npu` (flache Struktur, keine `decoder_with_past`)
-   * **Optional später:** `onnx-community/whisper-large-v3-turbo-german-ONNX` (ONNX-Dateien in `onnx/`-Unterordner, inkl. `decoder_with_past_model.onnx`)
-   * **Umsetzung:** Der Code muss prüfen, ob Dateien flach oder in einem `onnx/`-Unterordner liegen, und ggf. `decoder_with_past` nutzen, falls vorhanden. Der Tokenizer muss ebenfalls je nach Modell ausgewählt werden (AMD hat keinen eigenen Tokenizer).
+### Motivation: Warum Parakeet statt Whisper
+
+Whisper (Encoder-Decoder, 30s-Fenster) ist für kurze Diktate zu langsam: auf CPU
+dauert selbst die Transkription von 2 Wörtern 3-4 Sekunden. NVIDIA Parakeet TDT
+0.6B v3 (FastConformer-TDT, RNN-Transducer) löst dieses Problem fundamental:
+
+| Metrik | Whisper large-v3-turbo | Parakeet TDT v3 |
+|--------|----------------------|-----------------|
+| Architektur | Encoder-Decoder (30s-Fenster) | RNN-T/TDT (Frame-für-Frame) |
+| Deutsch WER (Fleurs) | ~7-8% | **5,04%** |
+| CPU RTFx | ~0,3-1× | **36×** |
+| Parameter | ~809M | 600M |
+| Zeichensetzung | Nur via Prompt | **Automatisch** |
+| Streaming-fähig | Nein | Ja (2s-Chunks möglich) |
+| Lizenz | MIT | CC-BY-4.0 (kommerziell) |
+
+Parakeet ist auf CPU bereits **30-40× schneller** als Whisper und bietet **bessere
+deutsche Qualität**. GPU/NPU-Beschleunigung ist optional, nicht zwingend nötig.
+
+### Phase 2A: onnx-asr + Parakeet TDT v3 auf CPU (primäres Ziel)
+
+1. **Engine-Wechsel:** Ersetze `faster-whisper`/`ctranslate2` durch
+   [`onnx-asr`](https://github.com/istupakov/onnx-asr) (pure Python, minimale
+   Abhängigkeiten, MIT-Lizenz).
+2. **Modell:** `nvidia/parakeet-tdt-0.6b-v3` als ONNX-Format.
+   Vorgefertigte ONNX-Version: `istupakov/parakeet-tdt-0.6b-v3-onnx` (HF).
+3. **Laufzeit:** `onnxruntime` (CPU) — kein PyTorch, kein CTranslate2.
+4. **Vorteile:**
+   * 36× RTFx auf CPU → Transkription praktisch instantan (~0,14s für 5s Audio).
+   * Bessere deutsche Qualität als Whisper (5,04% vs ~7-8% WER).
+   * Automatische Großschreibung und Zeichensetzung (kein Post-Processing nötig).
+   * Pure Python → einfache PyInstaller-Integration.
+   * Keine schweren Abhängigkeiten (numpy + onnxruntime only).
+
+### Phase 2B: DirectML für GPU/NPU-Beschleunigung (optional)
+
+1. **GPU-Beschleunigung:** Installiere `onnxruntime-directml` statt `onnxruntime`.
+   Aktiviere `DmlExecutionProvider` für AMD Radeon, Intel Arc, NVIDIA GPUs.
+2. **NPU (XDNA 2):** XDNA 2 NPUs (AMD Ryzen AI 300) sind via DirectML
+   theoretisch ansprechbar, aber die Treiber-Unterstützung für ASR-Modelle ist
+   noch experimentell. Bei 36× RTFx auf CPU ist NPU-Beschleunigung für ASR
+   **nicht zwingend erforderlich**.
+3. **UI-Geräteauswahl:** Die bestehende Auto/CPU/GPU-Auswahl in `index.html`
+   wird reaktiviert. NPU als experimentelle Option hinzufügen.
+4. **Fallback-Hierarchie:** NPU → GPU → CPU (jeweils mit Graceful Degradation).
+
+### Phase 2C: Streaming (optional, erst bei Bedarf)
+
+1. **Live-Text während Aufnahme:** Für echtes Streaming (wie Handy) müsste
+   `sherpa-onnx` statt `onnx-asr` verwendet werden (unterstützt 2s-Chunk-
+   Streaming mit Parakeet). sherpa-onnx unterstützt derzeit noch kein DirectML
+   (Issue #3194 offen).
+2. **Aufwand vs. Nutzen:** Bei 36× RTFx auf CPU dauert die Batch-Transkription
+   von 5s Audio nur 0,14s — Streaming bringt hier keinen spürbaren Mehrwert.
+   Streaming wird nur relevant, wenn Live-Text während des Sprechens angezeigt
+   werden soll.
 
 ---
 
@@ -62,7 +101,9 @@ Wir arbeiten das Projekt strikt in drei aufeinander aufbauenden Phasen ab. Begin
 
 1. **UI nach dem Vorbild von Handy:** Integriere im Tauri-Frontend unter den Einstellungen einen Tab "Post-Processing". Der Nutzer kann dort eigene, benannte Prompts erstellen (z. B. "Protokoll-Stil", "Standard-Korrektur") und den exakten System-Prompt-Text in einem Textfeld editieren.
 2. **Autarke Inferenz:** Anders als bei Handy (das Ollama voraussetzt) binden wir ein ultrakleines lokales LLM (Qwen 3 oder Gemma 4 2B) direkt in unser bestehendes Python-Backend ein (Ausführung via ONNX-Runtime).
-3. **Workflow:** Nach der Whisper-Transkription wird der Rohtext automatisch an die interne LLM-Engine übergeben, anhand des im UI gewählten Prompts bereinigt (Entfernen von Stotterern, Grammatikkorrektur) und erst dann in die Windows-Zwischenablage injiziert.
+3. **Workflow:** Nach der Parakeet-Transkription wird der Rohtext automatisch an die interne LLM-Engine übergeben, anhand des im UI gewählten Prompts bereinigt (Entfernen von Stotterern, Grammatikkorrektur) und erst dann in die Windows-Zwischenablage injiziert.
+   > **Hinweis:** Parakeet liefert bereits automatische Zeichensetzung und
+   > Großschreibung, sodass der LLM-Korrekturbedarf geringer ist als bei Whisper.
 
 ---
 
