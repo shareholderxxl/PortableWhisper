@@ -2,10 +2,10 @@
 # whisper-backend.spec
 # PyInstaller-Spezifikation für das PortableWhisper-Backend (Sidecar).
 #
-# Phase-1-Vorgaben (siehe PHASE1_PLAN.md):
-#   - Modell wird NICHT eingebettet (datas=[]); Download beim ersten Start
-#     via huggingface_hub nach %LOCALAPPDATA%/PortableWhisper/models/.
-#   - OHNE torch — faster-whisper läuft nativ über ctranslate2.
+# Phase-2-Vorgaben (siehe PHASE2_PLAN.md):
+#   - Modell wird NICHT eingebettet (datas=[]); User kopiert ONNX-Dateien
+#     nach data/models/default/.
+#   - onnx-asr + onnxruntime statt faster-whisper + ctranslate2.
 #   - console=False: kein Konsolenfenster beim Sidecar-Start (unsichtbar).
 #     stdout/stderr-None-Guard liegt in runtime_hooks/path_redirect.py.
 #   - UPX-Kompression an (kleineres Binary); ggf. bei AV-Fehlalarmen abschalten.
@@ -19,7 +19,7 @@ a = Analysis(
     ['main.py'],
     pathex=[str(backend_dir)],
     binaries=[],
-    datas=[],  # Modell-Daten NICHT einbetten!
+    datas=[],  # ONNX-Modell nicht einbetten — liegt in data/models/default/
     hiddenimports=[
         'uvicorn',
         'uvicorn.logging',
@@ -36,8 +36,8 @@ a = Analysis(
         'pydantic',
         'pydantic_settings',
         'huggingface_hub',
-        'faster_whisper',
-        'ctranslate2',
+        'onnx_asr',
+        'onnxruntime',
         'sounddevice',
         'soundfile',
         'numpy',
@@ -58,9 +58,11 @@ a = Analysis(
         'test',
         'tests',
         'pytest',
-        'torch',          # Phase 1: bewusst OHNE torch
+        'torch',          # Phase 2: weiterhin OHNE torch
         'torchvision',
         'torchaudio',
+        'faster_whisper', # Phase 1 Engine — nicht mehr benötigt
+        'ctranslate2',    # Phase 1 Backend — nicht mehr benötigt
     ],
     noarchive=False,
     optimize=2,

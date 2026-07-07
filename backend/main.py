@@ -4,7 +4,7 @@ FastAPI server for local speech-to-text processing
 """
 
 # Pfad-Management GANZ OBEN importieren: setzt %LOCALAPPDATA%-Pfade und
-# HuggingFace-Cache-Umgebungsvariablen, BEVOR faster_whisper/huggingface_hub
+# HuggingFace-Cache-Umgebungsvariablen, BEVOR onnxruntime/huggingface_hub
 # geladen werden. Muss vor jedem anderen App-Modul kommen.
 from runtime_hooks import path_redirect  # noqa: F401  (Seiteneffekt-Import)
 
@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 # Import our modules
 from audio_capture import AudioCapture
-from whisper_engine import WhisperEngine
+from parakeet_engine import ParakeetEngine
 import gpu_manager
 
 # Konfiguration
@@ -53,7 +53,7 @@ for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "faster_whisper", "hu
 
 # Global instances
 audio_capture: Optional[AudioCapture] = None
-whisper_engine: Optional[WhisperEngine] = None
+whisper_engine: Optional[ParakeetEngine] = None
 is_recording = False
 transcription_task: Optional[asyncio.Task] = None
 last_transcribed_text = ""
@@ -212,7 +212,7 @@ async def get_model_status(model_size: str = "small"):
             }
 
         # Check if this specific model is downloaded
-        temp_engine = WhisperEngine(model_size=model_size)
+        temp_engine = ParakeetEngine(model_size=model_size)
         is_downloaded = temp_engine.is_model_downloaded(model_size)
 
         # Check if model is currently loaded in memory
@@ -264,11 +264,11 @@ async def load_model(request: StartRequest):
         if whisper_engine is None or \
            whisper_engine.model_size != request.model_size or \
            whisper_engine._original_device != request.device:
-            whisper_engine = WhisperEngine(
+            whisper_engine = ParakeetEngine(
                 model_size=request.model_size,
                 device=request.device
             )
-            logger.info(f"✓ Whisper engine created (device: {whisper_engine.device})")
+            logger.info(f"✓ Parakeet engine created (device: {whisper_engine.device})")
 
         # Load the model if not already loaded
         if not whisper_engine.is_loaded:
@@ -286,13 +286,13 @@ async def load_model(request: StartRequest):
             model_loading_info = {"model": "", "status": ""}
 
             if not success:
-                error_msg = "Failed to load Whisper model."
+                error_msg = "Failed to load Parakeet model."
                 if whisper_engine.model_size.lower() == "default" and not whisper_engine.is_model_downloaded():
-                    error_msg += " Please place CTranslate2 model files in data/models/default/"
+                    error_msg += " Please place ONNX model files in data/models/default/"
                 return {
                     "status": "error",
                     "message": error_msg,
-                    "details": "Auto-download is disabled. Place models in data/models/default/."
+                    "details": "Place Parakeet ONNX files in data/models/default/."
                 }
 
             logger.info(f"✅ Model loaded: {request.model_size} on {whisper_engine.device}")
@@ -358,11 +358,11 @@ async def load_model_async(request: StartRequest):
                 if whisper_engine is None or \
                    whisper_engine.model_size != request.model_size or \
                    whisper_engine._original_device != request.device:
-                    whisper_engine = WhisperEngine(
+                    whisper_engine = ParakeetEngine(
                         model_size=request.model_size,
                         device=request.device
                     )
-                    logger.info(f"✓ Whisper engine created (device: {whisper_engine.device})")
+                    logger.info(f"✓ Parakeet engine created (device: {whisper_engine.device})")
 
                 # Modell laden
                 success = await loop.run_in_executor(None, whisper_engine.load_model)
@@ -426,13 +426,13 @@ async def start_recording(request: StartRequest):
         if whisper_engine is not None and \
            whisper_engine.model_size == request.model_size and \
            whisper_engine._original_device == request.device:
-            logger.info(f"♻️ Reusing existing Whisper engine (device: {whisper_engine.device})")
+            logger.info(f"♻️ Reusing existing Parakeet engine (device: {whisper_engine.device})")
         else:
-            whisper_engine = WhisperEngine(
+            whisper_engine = ParakeetEngine(
                 model_size=request.model_size,
                 device=request.device
             )
-            logger.info(f"✓ Whisper engine created (device: {whisper_engine.device})")
+            logger.info(f"✓ Parakeet engine created (device: {whisper_engine.device})")
 
         # Audio capture starten
         audio_capture = AudioCapture()
@@ -488,8 +488,8 @@ async def start_recording(request: StartRequest):
 
 
 async def _load_model_async(loop: asyncio.AbstractEventLoop):
-    """Lädt das Whisper-Modell asynchron im Hintergrund."""
-    global whisper_engine, is_model_loading, model_loading_info, streaming_failed
+    """Lädt das Parakeet-Modell asynchron im Hintergrund."""
+    global whisper_engine, is_model_loading, model_loading_info
 
     try:
         is_model_loading = True
@@ -497,16 +497,14 @@ async def _load_model_async(loop: asyncio.AbstractEventLoop):
             "model": whisper_engine.model_size if whisper_engine else "default",
             "status": "Loading model..."
         }
-        logger.info("📥 Loading Whisper model (background async)...")
+        logger.info("📥 Loading Parakeet model (background async)...")
         success = await loop.run_in_executor(None, whisper_engine.load_model)
         if success:
             logger.info("✅ Model loaded successfully (background)")
         else:
             logger.error("❌ Model loading failed (background)")
-            streaming_failed = True
     except Exception as e:
         logger.error(f"❌ Model loading error: {e}")
-        streaming_failed = True
     finally:
         is_model_loading = False
         model_loading_info = {"model": "", "status": ""}
