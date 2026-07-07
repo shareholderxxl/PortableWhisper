@@ -318,6 +318,96 @@ async def load_model(request: StartRequest):
         }
 
 
+@app.post("/load_model_async")
+async def load_model_async(request: StartRequest):
+    """Pre-load Whisper model asynchronously on app startup (Smart Pre-Load)"""
+    global whisper_engine, is_model_loading, model_loading_info, current_language
+
+    try:
+        # Wenn bereits am laden, return status
+        if is_model_loading:
+            return {"status": "loading", "message": "Model is already loading"}
+
+        # Wenn bereits geladen, return success
+        if whisper_engine is not None and whisper_engine.is_loaded and \
+           whisper_engine.model_size == request.model_size and \
+           whisper_engine._original_device == request.device:
+            logger.info(f"♻️ Model already loaded: {request.model_size} on {whisper_engine.device}")
+            return {
+                "status": "success",
+                "message": "Model already loaded",
+                "model": request.model_size,
+                "device": whisper_engine.device
+            }
+
+        # Async load starten
+        current_language = None if request.language in (None, "auto") else request.language
+
+        async def _load_async():
+            global whisper_engine, is_model_loading, model_loading_info
+
+            try:
+                is_model_loading = True
+                model_loading_info = {"model": request.model_size, "status": "Loading..."}
+
+                logger.info(f"📥 Smart Pre-Load: Loading model {request.model_size} on {request.device} in background...")
+
+                loop = asyncio.get_event_loop()
+
+                # Engine erstellen
+                if whisper_engine is None or \
+                   whisper_engine.model_size != request.model_size or \
+                   whisper_engine._original_device != request.device:
+                    whisper_engine = WhisperEngine(
+                        model_size=request.model_size,
+                        device=request.device
+                    )
+                    logger.info(f"✓ Whisper engine created (device: {whisper_engine.device})")
+
+                # Modell laden
+                success = await loop.run_in_executor(None, whisper_engine.load_model)
+
+                if success:
+                    logger.info(f"✅ Smart Pre-Load completed: {request.model_size} on {whisper_engine.device}")
+                else:
+                    logger.warning(f"⚠️ Smart Pre-Load failed: {request.model_size}")
+
+                is_model_loading = False
+                model_loading_info = {"model": "", "status": ""}
+
+                return success
+
+            except Exception as e:
+                logger.error(f"❌ Smart Pre-Load error: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+
+                is_model_loading = False
+                model_loading_info = {"model": "", "status": ""}
+                return False
+
+        # Task starten (non-blocking)
+        asyncio.create_task(_load_async())
+
+        return {
+            "status": "started",
+            "message": "Model load started in background"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to start async model load: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+        is_model_loading = False
+        model_loading_info = {"model": "", "status": ""}
+
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @app.post("/start")
 async def start_recording(request: StartRequest):
     """Start recording audio. Modell wird parallel im Hintergrund vorgeladen."""

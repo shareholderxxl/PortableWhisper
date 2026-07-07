@@ -1130,6 +1130,49 @@ pub fn run() {
             std::thread::sleep(std::time::Duration::from_secs(1));
             log::info!("✅ Backend server started");
 
+            // Smart Pre-Load: Start async model load on app startup
+            log::info!("📥 Smart Pre-Load: Starting async model load on startup...");
+            let app_handle_preload = app.handle().clone();
+            let state_preload: tauri::State<AppState> = app.state();
+            tauri::async_runtime::spawn(async move {
+                // Get settings
+                let settings = {
+                    let state_ref = state_preload.inner();
+                    state_ref.settings.lock().await.clone()
+                };
+
+                // Call backend /load_model_async
+                let client = reqwest::Client::new();
+                let lang_value = if settings.selected_language == "auto" {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(settings.selected_language)
+                };
+
+                let request_body = serde_json::json!({
+                    "model_size": settings.selected_model,
+                    "language": lang_value,
+                    "device": settings.selected_device
+                });
+
+                match client.post("http://127.0.0.1:8765/load_model_async")
+                    .json(&request_body)
+                    .send()
+                    .await
+                {
+                    Ok(resp) if resp.status().is_success() => {
+                        log::info!("✅ Smart Pre-Load started successfully (model: {}, device: {})",
+                            settings.selected_model, settings.selected_device);
+                    }
+                    Ok(resp) => {
+                        log::warn!("⚠️ Smart Pre-Load request failed: {}", resp.status());
+                    }
+                    Err(e) => {
+                        log::warn!("⚠️ Smart Pre-Load request error: {}", e);
+                    }
+                }
+            });
+
             // Create recording window
             WebviewWindowBuilder::new(app, "recording", tauri::WebviewUrl::App("recording.html".into()))
                 .title("Recording")
