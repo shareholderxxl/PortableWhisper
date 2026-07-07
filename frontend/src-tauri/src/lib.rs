@@ -317,9 +317,9 @@ async fn cmd_start_recording(app: AppHandle, state: State<'_, AppState>) -> Resu
             let screen_size = monitor.size();
             let window_size = win.outer_size().map_err(|e| e.to_string())?;
 
-            // Calculate centered X position, top Y position (50px from top)
-            let x = (screen_size.width as i32 - window_size.width as i32) / 2;
-            let y = 50;
+            // Calculate top-right position (20px from edges)
+            let x = (screen_size.width as i32 - window_size.width as i32) - 20;
+            let y = 20;
 
             win.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
         }
@@ -1023,25 +1023,8 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             }
         }
         "quit" => {
-            let app_clone = app.clone();
-            tauri::async_runtime::spawn(async move {
-                let state: tauri::State<AppState> = app_clone.state();
-                if let Some(child) = state.backend_child.lock().await.take() {
-                    log::info!("🛑 Killing backend process...");
-                    match child.kill() {
-                        Ok(_) => {
-                            log::info!("✅ Backend process kill signal sent");
-                            // Give it a moment to terminate
-                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                        }
-                        Err(e) => {
-                            log::warn!("⚠️ Failed to kill backend: {}", e);
-                        }
-                    }
-                }
-                log::info!("👋 Exiting application");
-                app_clone.exit(0);
-            });
+            log::info!("👋 Quit requested via tray menu");
+            app.exit(0);
         }
         _ => {}
     }
@@ -1135,26 +1118,24 @@ pub fn run() {
             let app_handle_preload = app.handle().clone();
             let state_preload: tauri::State<AppState> = app.state();
             tauri::async_runtime::spawn(async move {
-                // Get settings
-                let settings = {
-                    let state_ref = state_preload.inner();
-                    state_ref.settings.lock().await.clone()
-                };
+                // Get settings from AppState
+                let model_size = state_preload.selected_model.lock().await.clone();
+                let device = state_preload.selected_device.lock().await.clone();
+                let language = state_preload.selected_language.lock().await.clone();
 
-                // Call backend /load_model_async
-                let client = reqwest::Client::new();
-                let lang_value = if settings.selected_language == "auto" {
+                let lang_value = if language == "auto" {
                     serde_json::Value::Null
                 } else {
-                    serde_json::json!(settings.selected_language)
+                    serde_json::json!(language)
                 };
 
                 let request_body = serde_json::json!({
-                    "model_size": settings.selected_model,
+                    "model_size": model_size,
                     "language": lang_value,
-                    "device": settings.selected_device
+                    "device": device
                 });
 
+                let client = reqwest::Client::new();
                 match client.post("http://127.0.0.1:8765/load_model_async")
                     .json(&request_body)
                     .send()
@@ -1162,7 +1143,7 @@ pub fn run() {
                 {
                     Ok(resp) if resp.status().is_success() => {
                         log::info!("✅ Smart Pre-Load started successfully (model: {}, device: {})",
-                            settings.selected_model, settings.selected_device);
+                            model_size, device);
                     }
                     Ok(resp) => {
                         log::warn!("⚠️ Smart Pre-Load request failed: {}", resp.status());
@@ -1176,7 +1157,7 @@ pub fn run() {
             // Create recording window
             WebviewWindowBuilder::new(app, "recording", tauri::WebviewUrl::App("recording.html".into()))
                 .title("Recording")
-                .inner_size(616.0, 140.0)
+                .inner_size(300.0, 120.0)
                 .resizable(false)
                 .position(0.0, 50.0)  // Will be centered horizontally when shown
                 .always_on_top(true)
