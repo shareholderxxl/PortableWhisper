@@ -1000,21 +1000,20 @@
             </div>
 
             <div class="config-section">
-                <h3 class="config-section-title">Whisper 3 Large Turbo Modell</h3>
+                <h3 class="config-section-title">NVIDIA Parakeet TDT 0.6B v3 Modell</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
-                    <p><strong>Source:</strong> Systran/faster-whisper-large-v3-turbo</p>
-                    <p><strong>Lizenz:</strong> MIT License</p>
-                    <p><strong>Modell-Download:</strong> <a href="https://huggingface.co/Systran/faster-whisper-large-v3-turbo" onclick="openExternalLink(event, 'https://huggingface.co/Systran/faster-whisper-large-v3-turbo')">huggingface.co/Systran/faster-whisper-large-v3-turbo</a></p>
+                    <p><strong>Source:</strong> NVIDIA/parakeet-tdt-0.6b-v3 (ONNX int4)</p>
+                    <p><strong>Lizenz:</strong> CC-BY-4.0</p>
+                    <p><strong>Modell-Download:</strong> <a href="https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4" onclick="openExternalLink(event, 'https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4')">huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4</a></p>
                 </div>
             </div>
 
             <div class="config-section">
                 <h3 class="config-section-title">Abhängigkeiten</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
-                    <p><strong>faster-whisper:</strong> MIT License &mdash; <a href="https://github.com/SYSTRAN/faster-whisper" onclick="openExternalLink(event, 'https://github.com/SYSTRAN/faster-whisper')">GitHub</a></p>
-                    <p><strong>CTranslate2:</strong> BSD-3-Clause &mdash; <a href="https://github.com/OpenNMT/CTranslate2" onclick="openExternalLink(event, 'https://github.com/OpenNMT/CTranslate2')">GitHub</a></p>
+                    <p><strong>onnx-asr:</strong> MIT License &mdash; <a href="https://github.com/istupakov/onnx-asr" onclick="openExternalLink(event, 'https://github.com/istupakov/onnx-asr')">GitHub</a></p>
+                    <p><strong>ONNX Runtime:</strong> MIT License &mdash; <a href="https://github.com/microsoft/onnxruntime" onclick="openExternalLink(event, 'https://github.com/microsoft/onnxruntime')">GitHub</a></p>
                     <p><strong>Tauri 2:</strong> MIT/Apache-2.0 &mdash; <a href="https://tauri.app" onclick="openExternalLink(event, 'https://tauri.app')">tauri.app</a></p>
-                    <p><strong>PyTorch</strong> (nur Build-Prozess): BSD-3-Clause &mdash; <a href="https://pytorch.org" onclick="openExternalLink(event, 'https://pytorch.org')">pytorch.org</a></p>
                 </div>
             </div>
         </div>
@@ -1659,27 +1658,28 @@
             dialog.innerHTML = `
                 <div class="dialog-content">
                     <h2>❌ Modell nicht gefunden</h2>
-                    <p>PortableWhisper benötigt ein Whisper-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
+                    <p>PortableWhisper benötigt ein Parakeet ONNX-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
                     <h3>So installieren Sie das Modell:</h3>
                     <div class="install-method">
                         <strong>Option A: HuggingFace CLI (empfohlen)</strong>
                         <pre>pip install huggingface-hub
-huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False</pre>
+hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir data/models/default/</pre>
                     </div>
                     <div class="install-method">
                         <strong>Option B: Manuelles Download</strong>
                         <ol>
-                            <li>Öffnen Sie: <a href="https://huggingface.co/Systran/faster-whisper-large-v3-turbo" onclick="openExternalLink(event, 'https://huggingface.co/Systran/faster-whisper-large-v3-turbo')">huggingface.co/Systran/faster-whisper-large-v3-turbo</a></li>
-                            <li>Laden Sie alle Dateien herunter (config.json, model.bin, tokenizer.json, ...)</li>
+                            <li>Öffnen Sie: <a href="https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4" onclick="openExternalLink(event, 'https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4')">huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4</a></li>
+                            <li>Laden Sie alle ONNX-Dateien herunter</li>
                             <li>Kopieren Sie die Dateien nach <code>data/models/default/</code></li>
                         </ol>
                     </div>
                     <h3>Erforderliche Dateien in <code>data/models/default/</code>:</h3>
                     <ul>
-                        <li><code>config.json</code></li>
-                        <li><code>model.bin</code></li>
+                        <li><code>encoder-model.int4.onnx</code></li>
+                        <li><code>decoder_joint-model.int8.onnx</code></li>
+                        <li><code>vocab.txt</code></li>
                     </ul>
-                    <p><strong>Hinweis:</strong> Sie können jedes Whisper-Modell im CTranslate2-Format verwenden. Details siehe <strong>Licenses</strong>-Seite und <code>README.md</code>.</p>
+                    <p><strong>Hinweis:</strong> Sie können auch das int8-Modell von <code>istupakov/parakeet-tdt-0.6b-v3-onnx</code> verwenden. Details siehe <strong>Licenses</strong>-Seite und <code>README.md</code>.</p>
                     <button class="close-dialog-btn" type="button">Schließen</button>
                 </div>
             `;

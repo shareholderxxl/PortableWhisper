@@ -171,15 +171,14 @@ Check the app logs:
 
 ### Large File Size
 
-The MSI is approximately ~660MB because it includes:
+The portable ZIP is approximately ~150MB because it includes:
 
 - Python runtime (~50MB)
-- FastAPI/Uvicorn backend (~100MB)
-- faster-whisper and dependencies (~100MB)
-- CUDA libraries (cublas, cudnn, etc.) (~400MB)
+- FastAPI/Uvicorn backend (~50MB)
+- onnx-asr and ONNX Runtime (~50MB)
 - Tauri frontend (~10MB)
 
-**Note:** Whisper models are NOT included in the installer - they download automatically on first use to `%APPDATA%\PortableWhisper\models\`
+**Note:** Parakeet ONNX models are NOT included in the ZIP - place them manually in `data/models/default/`.
 
 To reduce size:
 - Remove CUDA bundling (edit `build_backend.py` to exclude NVIDIA DLLs) - saves ~400MB but requires users to install CUDA

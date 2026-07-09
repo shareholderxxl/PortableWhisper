@@ -1,7 +1,7 @@
 # Tauri Portable Sidecar — PortableWhisper
 
 ## Ziel
-Das FastAPI-Backend (mit Whisper-Modell `primeline/whisper-large-v3-german`) wird via **PyInstaller** in eine eigenständige `whisper-backend.exe` gefreezt und als **Tauri-Sidecar** registriert. Die App wird als portables ZIP-Archiv ohne Admin-Rechte ausgeliefert.
+Das FastAPI-Backend (mit Parakeet TDT v3 ONNX-Modell) wird via **PyInstaller** in eine eigenständige `whisper-backend.exe` gefreezt und als **Tauri-Sidecar** registriert. Die App wird als portables ZIP-Archiv ohne Admin-Rechte ausgeliefert.
 
 ---
 

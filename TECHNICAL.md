@@ -34,11 +34,11 @@ PortableWhisper uses a **sidecar architecture** with a Rust frontend and Python 
 ### Backend (Python/FastAPI)
 
 - **Framework:** FastAPI 0.115.0+
-- **AI Engine:** faster-whisper 1.0.0+
+- **AI Engine:** onnx-asr 0.11.0+ (Parakeet TDT v3 via ONNX Runtime)
 - **Audio:** sounddevice 0.4.6+
 - **Key Features:**
   - Audio capture and processing
-  - Whisper model management
+  - Parakeet TDT model management
   - GPU/CPU device detection
   - Real-time transcription
 
@@ -214,7 +214,8 @@ pub struct AppState {
 ```
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
-faster-whisper>=1.0.0
+onnx-asr>=0.11.0
+onnxruntime>=1.20.0
 sounddevice>=0.4.6
 numpy>=1.26.0
 scipy>=1.12.0
@@ -405,8 +406,8 @@ where.exe cudnn_ops64_9.dll
 
 ## 📚 References
 
-- **Whisper Paper:** https://arxiv.org/abs/2212.04356
-- **faster-whisper:** https://github.com/guillaumekln/faster-whisper
+- **Parakeet TDT Paper:** https://arxiv.org/abs/2509.14128
+- **onnx-asr:** https://github.com/istupakov/onnx-asr
+- **ONNX Runtime:** https://github.com/microsoft/onnxruntime
 - **Tauri Documentation:** https://tauri.app/
 - **FastAPI Documentation:** https://fastapi.tiangolo.com/
-- **CUDA Toolkit:** https://developer.nvidia.com/cuda-toolkit

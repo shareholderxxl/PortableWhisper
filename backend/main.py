@@ -48,7 +48,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Route external loggers to our file handler
-for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "faster_whisper", "huggingface_hub"):
+for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "onnx_asr", "onnxruntime", "huggingface_hub"):
     logging.getLogger(name).addHandler(file_handler)
 
 # Global instances

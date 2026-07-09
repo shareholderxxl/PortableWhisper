@@ -1,6 +1,6 @@
 """
-GPU Capability Test Script
-Tests if the GPU can handle CTranslate2 operations
+GPU Capability Test Script (Legacy — Phase 1 CTranslate2)
+Tests if the GPU can handle ONNX Runtime / DirectML operations
 """
 
 import logging

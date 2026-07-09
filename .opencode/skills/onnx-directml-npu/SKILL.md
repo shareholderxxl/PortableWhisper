@@ -1,7 +1,7 @@
 # ONNX Runtime + DirectML — NPU-Beschleunigung für Windows STT
 
 ## Ziel
-Das Whisper-Backend wird von PyTorch auf **onnxruntime-directml** umgestellt. Dadurch werden NPUs von Intel (Core Ultra) und AMD (Ryzen AI) unter Windows 11 nativ und stromsparend angesteuert. Modell: `onnx-community/whisper-large-v3-turbo-german-ONNX`.
+Das PortableWhisper-Backend nutzt **onnx-asr** mit **onnxruntime-directml** als optionalem GPU/NPU-Backend. Dadurch werden NPUs von Intel (Core Ultra) und AMD (Ryzen AI) unter Windows 11 nativ und stromsparend angesteuert. Modell: `nvidia/parakeet-tdt-0.6b-v3` (ONNX int4).
 
 ---
 

@@ -42,10 +42,9 @@ def get_gpu_libs_dir() -> Path:
 
 
 def is_gpu_available() -> bool:
-    """Check if GPU (CUDA) is available on this system"""
+    """Check if GPU is available on this system"""
     try:
-        # Don't import ctranslate2 here - it triggers CUDA loading
-        # Instead, check if NVIDIA GPU exists via Windows
+        # Check if NVIDIA/AMD/Intel GPU exists via Windows
         import subprocess
         result = subprocess.run(
             ['wmic', 'path', 'win32_VideoController', 'get', 'name'],

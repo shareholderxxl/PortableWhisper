@@ -163,24 +163,28 @@ jobs:
           Copy-Item LICENSES.md $stage/ -ErrorAction SilentlyContinue
 
           # Platzhalter-README im default-Modellordner, damit User weiss,
-          # wohin die CTranslate2-Modell-Dateien gehören.
+          # wohin die ONNX-Modell-Dateien gehören.
           Set-Content -Path "$stage/data/models/default/README.txt" -Value @"
           PortableWhisper - Standardmodell-Ordner
           =======================================
 
-          Legen Sie die CTranslate2-Modell-Dateien (mind. config.json und
-          model.bin) in diesen Ordner, damit PortableWhisper funktioniert.
+          Legen Sie die Parakeet ONNX-Modell-Dateien in diesen Ordner,
+          damit PortableWhisper funktioniert.
 
-          Empfohlenes Modell: Systran/faster-whisper-large-v3-turbo
-          Download: https://huggingface.co/Systran/faster-whisper-large-v3-turbo
+          Empfohlenes Modell: NVIDIA Parakeet TDT 0.6B v3 (ONNX int4)
+          Download: https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4
 
-          Beispiel mit huggingface-cli:
-            huggingface-cli download Systran/faster-whisper-large-v3-turbo `
-              --local-dir data/models/default/ `
-              --local-dir-use-symlinks False
+          Erforderliche Dateien:
+            - encoder-model.int4.onnx
+            - decoder_joint-model.int8.onnx
+            - vocab.txt
 
-          Sie koennen auch jedes andere Whisper-Modell im CTranslate2-Format
-          verwenden. Siehe README.md fuer Details.
+          Beispiel mit HuggingFace CLI:
+            hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 `
+              --local-dir data/models/default/
+
+          Alternativ: int8-Modell von istupakov/parakeet-tdt-0.6b-v3-onnx
+          Siehe README.md fuer Details.
           "@
 
           $version = "${{ github.ref_name }}"

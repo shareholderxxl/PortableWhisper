@@ -3,7 +3,7 @@ Tests für Pre-Load + Batch Transkription (Phase 1-2)
 
 Testet:
 1. AudioCapture.drain_available() — Queue-Drain Logik
-2. WhisperEngine.transcribe_chunk() — Mindestlängen-Prüfung
+2. ParakeetEngine.transcribe_chunk() — Mindestlängen-Prüfung
 3. Pre-Load + Batch Logik — Modell-Laden, Audio-Fluss
 """
 import sys
@@ -15,12 +15,12 @@ from pathlib import Path
 
 # ─── Module vor Import mocken ─────────────────────────────────────────────
 _sounddevice_mock = MagicMock()
-_faster_whisper_mock = MagicMock()
-_ctranslate2_mock = MagicMock()
+_onnx_asr_mock = MagicMock()
+_onnxruntime_mock = MagicMock()
 
 sys.modules.setdefault('sounddevice', _sounddevice_mock)
-sys.modules.setdefault('faster_whisper', _faster_whisper_mock)
-sys.modules.setdefault('ctranslate2', _ctranslate2_mock)
+sys.modules.setdefault('onnx_asr', _onnx_asr_mock)
+sys.modules.setdefault('onnxruntime', _onnxruntime_mock)
 
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
@@ -38,7 +38,7 @@ gpu_manager_mock = MagicMock()
 sys.modules.setdefault('gpu_manager', gpu_manager_mock)
 
 from audio_capture import AudioCapture
-from whisper_engine import WhisperEngine
+from parakeet_engine import ParakeetEngine
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -81,14 +81,14 @@ class TestDrainAvailable:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 2: WhisperEngine.transcribe_chunk() — Mindestlängen-Prüfung
+# TEST 2: ParakeetEngine.transcribe_chunk() — Mindestlängen-Prüfung
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestTranscribeChunkMinLength:
     """Testet die Mindestlängen-Prüfung von transcribe_chunk()."""
 
     def _make_engine_with_mock_model(self):
-        engine = WhisperEngine(model_size="default", device="cpu")
+        engine = ParakeetEngine(model_size="default", device="cpu")
         engine.is_loaded = True
         engine.model = MagicMock()
         return engine
@@ -115,7 +115,7 @@ class TestTranscribeChunkMinLength:
         assert result["text"] == "test"
 
     def test_chunk_not_loaded_returns_error(self):
-        engine = WhisperEngine(model_size="default", device="cpu")
+        engine = ParakeetEngine(model_size="default", device="cpu")
         engine.is_loaded = False
         audio = np.zeros(16000, dtype=np.float32)
         result = engine.transcribe_chunk(audio)
