@@ -34,4 +34,4 @@ onnxruntime>=1.20.0      # direkt als Build-Dependency (nicht nur transitiv)
 huggingface_hub>=0.30.0  # fuer on-demand Modell-Download
 
 # Build-Tooling
-pyinstaller>=6.10.0
+pyinstaller>=6.10.0,<7  # auf 6.x pinnen: collect_all liefert hier stabil 3 Werte

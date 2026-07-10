@@ -66,14 +66,15 @@ a = Analysis(
     optimize=2,
 )
 
-# Phase 2: onnx-asr + onnxruntime collect_all für korrektes Bundling
-# PyInstaller >= 6 liefert 3 Werte zurück (datas, binaries, hiddenimports).
+# Phase 2: onnx-asr + onnxruntime collect_all für korrektes Bundling.
+# Index-basierter Zugriff (wie PyInstallers eigenes makespec.py), damit es
+# egal ist, ob collect_all 3 (PyInstaller 6.x) oder 4+ (7.x) Werte liefert.
 from PyInstaller.utils.hooks import collect_all
-asr_datas, asr_binaries, asr_hidden = collect_all('onnx_asr')
-ort_datas, ort_binaries, ort_hidden = collect_all('onnxruntime')
-a.binaries += asr_binaries + ort_binaries
-a.datas += asr_datas + ort_datas
-a.pure += asr_hidden + ort_hidden
+for _pkg in ('onnx_asr', 'onnxruntime'):
+    _ret = collect_all(_pkg)
+    a.datas += _ret[0]
+    a.binaries += _ret[1]
+    a.pure += _ret[2]
 
 pyz = PYZ(a.pure)
 
