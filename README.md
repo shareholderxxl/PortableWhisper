@@ -1,318 +1,169 @@
 # 🎙️ PortableWhisper
 
-**Your Voice, Transcribed Instantly - 100% Private, No Internet Required**
+**Your voice, transcribed instantly — 100% private, no internet required.**
 
-Transform your voice into text anywhere on Windows with a simple keyboard shortcut. Whether you're writing emails, taking notes, or coding - PortableWhisper puts professional speech-to-text at your fingertips, completely free and private.
+PortableWhisper is a local, offline speech-to-text tool for Windows. Press a hotkey,
+speak, and your words appear wherever your cursor is — emails, notes, chats, code.
+Everything runs on your machine; nothing is ever sent to the cloud.
 
-![PortableWhisper in Action](images/demo-google-search.png)
-![PortableWhisper in Action](images/settings-window.png)
-*Speak naturally, watch your words appear instantly in any application*
-
----
-
-## Why PortableWhisper?
-
-### 🔒 **Completely Private**
-
-Your voice never leaves your computer. No cloud, no API keys, no subscriptions. Everything runs locally using OpenAI's powerful Whisper model.
-
-### ⚡ **Lightning Fast**
-
-With GPU acceleration, transcribe 30 seconds of speech in 0.5-2 seconds. No waiting, no buffering - just instant results. CPU fallback available for all systems.
-
-### 🎯 **Works Everywhere**
-
-Press F9 from any app - Word, Chrome, Slack, VSCode - speak your thoughts, and watch text appear exactly where you need it.
-
-### 🌍 **Truly Multilingual**
-
-Supports 99 languages with automatic detection. Switch between languages effortlessly or lock to your preferred ones for better accuracy. Language detection works automatically or you can specify a language for better performance.
+> 🇩🇪 **Optimized for German.** The default recognition language is German (auto-detect
+> available for 25 European languages).
 
 ---
 
-## 🎬 See It In Action
+## ✨ Features
 
-### **Simple 3-Step Workflow**
-
-1. **Press F9** - Minimal recording window appears at top of your screen
-2. **Speak naturally** - Watch the live visualizer respond to your voice
-3. **Press F9 again** - Text appears instantly where your cursor is
-
-![Processing Wave Animation](images/processing-wave-animation.png)
-*Beautiful wave animation shows processing in real-time - all happening locally on your device*
+- 🔒 **Fully private** — no cloud, no API keys, no subscriptions. Runs 100% offline.
+- ⚡ **Fast** — Parakeet TDT 0.6B v3 on CPU delivers real-time transcription (~36× real-time).
+- 🎯 **Global hotkey** — press **F9** from any app (Word, Chrome, VS Code, Slack…) and speak.
+- 🌍 **Multilingual** — 25 European languages via NVIDIA Parakeet TDT v3, auto-detect or fixed.
+- 📦 **Portable** — single ZIP, no installer, no UAC. Unpack and run.
+- 🎨 **Clean UI** — light / dark / system theme, customizable shortcuts, sound effects.
 
 ---
 
-## ⚙️ Powerful Settings, Simple Interface
+## 🚀 Download & Run
 
-Customize PortableWhisper to work exactly how you want:
+1. Download the latest **PortableWhisper** ZIP from the [Releases](../../releases) page.
+2. Unpack it to any folder (e.g. `C:\PortableWhisper`).
+3. Place the model files (see below) into the `model/` folder.
+4. Double-click **`PortableWhisper.exe`**.
 
-![Configuration](images/Configuration-Panel.png)
-*Fine-tune your keyboard shortcuts, model quality, and processing device*
-
-![Speech-to-Text Settings](images/Configuration-Panel-2.png)
-*Choose your preferred languages, enable GPU acceleration, and control clipboard behavior*
-
-![Sound Configuration](images/Sound-Panel.png)
-*Select your microphone, adjust sound effects, and customize the experience*
-
-### **Key Settings:**
-
-- **🎯 Model Quality** - Balance speed vs accuracy (tiny, base, small, medium, large-v3)
-- **⚙️ Processing Device** - Auto-detect or force GPU/CPU with automatic fallback
-- **🌍 Languages** - Auto-detect all 99 languages or specify a language for better performance
-- **🎤 Microphone** - Select from all available input devices with device index selection
-- **⌨️ Keyboard Shortcuts** - Customize toggle (default: F9) and cancel (default: Escape) shortcuts
-- **📋 Clipboard** - Keep text in clipboard or auto-restore previous content
-- **🎨 Themes** - Light, dark, or system-matched appearance
+That's it — no installation, no setup wizard.
 
 ---
 
-## 🚀 Getting Started
+## 🧠 Model Setup
 
-### **Option 1: MSI Installer (Recommended)**
+PortableWhisper ships **without a bundled model** to keep the download small (~200 MB).
+You place the ONNX model files yourself, once.
 
-1. **Download** - Get `PortableWhisper_0.1.0_x64_en-US.msi` (~660MB)
-2. **Install** - Run the installer
-3. **Launch** - Start from Start Menu or Desktop
-4. **First Run** - Whisper model downloads automatically (~500MB, one-time)
-5. **Start Dictating!** - Press F9 anywhere and speak
+### Required files in `model/`
 
-✅ **CUDA libraries bundled!** GPU acceleration works out-of-the-box if you have an NVIDIA GPU.
+```
+PortableWhisper/
+└── model/
+    ├── encoder-model.int4.onnx      (~373 MB, int4 encoder)
+    ├── decoder_joint-model.int8.onnx (~18 MB, int8 decoder+joint)
+    └── vocab.txt                     (~92 KB, SentencePiece vocabulary)
+```
 
-### **Option 2: From Source (Developers)**
+### Recommended model: Parakeet TDT 0.6B v3 (ONNX int4)
 
-1. **Clone** - Clone this repo
-2. **Run** - Double-click `START_APP.bat`
-3. **Wait** - First launch downloads the Whisper model (~500MB, one-time only)
-4. **Start Dictating!** - Press F9 anywhere and speak
+**Option A — HuggingFace CLI (easiest)**
 
-That's it! No accounts, no configuration wizards, no complicated setup.
+```bash
+pip install huggingface-hub
 
-### **Try It Now**
+hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/
+```
 
-Open Notepad (or any text app), press **F9**, and say:
+**Option B — Manual download**
 
-> "Hello world, this is Whisper for Windows transcribing my voice in real-time, completely offline and private."
+1. Open: https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4
+2. Download `encoder-model.int4.onnx`, `decoder_joint-model.int8.onnx`, and `vocab.txt`.
+3. Copy them into the `model/` folder next to `PortableWhisper.exe`.
 
-Watch it appear instantly! ✨
+**Alternative (int8):** `istupakov/parakeet-tdt-0.6b-v3-onnx` — same procedure,
+different quantization. Both work; int4 is smaller and faster on CPU.
 
----
-
-## 💪 What You Can Do
-
-- **📝 Write Emails** - Dictate emails 3x faster than typing
-- **📄 Take Notes** - Capture meeting notes without looking away
-- **💬 Chat Messages** - Respond quickly in Slack, Teams, Discord
-- **📚 Write Documents** - Draft reports and documentation hands-free
-- **💻 Code Comments** - Dictate code comments and documentation
-- **🌐 Browse Faster** - Search Google by voice
-- **♿ Accessibility** - Perfect for users who prefer or need voice input
+> ⚠️ Only **one model** is supported (Parakeet TDT 0.6B v3). There are no size tiers
+> like tiny/base/large — Parakeet is a single fixed architecture.
 
 ---
 
-## 🔧 System Requirements
+## ⌨️ Usage
 
-**Minimum:**
+1. **Press F9** — a minimal recording window appears at the top of your screen.
+2. **Speak naturally** — watch the live audio visualizer respond.
+3. **Press F9 again** — the transcribed text is inserted at your cursor.
 
-- Windows 10/11
-- 8GB RAM
-- Microphone (built-in or external)
+Settings (F9 default, language, microphone, theme, GPU) are available from the
+**Settings** page inside the app.
 
-**Recommended for GPU Acceleration:**
+---
 
-- NVIDIA GPU (GTX 1060 or better)
-- 16GB RAM
-- ✅ **No CUDA installation required!** CUDA libraries are bundled with the MSI installer
+## 🖥️ System Requirements
 
-**Performance:**
+- **OS:** Windows 10 / 11 (64-bit)
+- **RAM:** 8 GB minimum, 16 GB recommended
+- **Microphone:** built-in or external
+- **Disk:** ~600 MB (app + model)
 
-- **GPU Mode:** 30 seconds of speech → 0.5-2 seconds transcription ⚡
-- **CPU Mode:** 30 seconds of speech → 5-10 seconds transcription
-- **Model Sizes:** tiny (fastest) → base → small (recommended) → medium → large-v3 (most accurate)
+### GPU acceleration (optional)
 
-📖 **[Installation guide →](INSTALLATION.md)** | **[Build your own MSI →](BUILD.md)**
+NVIDIA GPU users can enable CUDA acceleration. The CUDA libraries are **not bundled**
+— install them once from **Settings → Install GPU Libraries** (~600 MB download, on demand).
+The app automatically falls back to fast CPU mode if no GPU is present.
+
+---
 
 ## ❓ FAQ
 
 **Q: Is this really free?**
-A: Yes! 100% free and open-source. No subscriptions, no API keys, no hidden costs.
+A: Yes. MIT-licensed, open source, no subscriptions or API keys.
 
-**Q: Do I need an internet connection?**
-A: Only for the first-time model download (~500MB). After that, everything works completely offline.
-
-**Q: Do I need to install CUDA for GPU acceleration?**
-A: No! The MSI installer includes all necessary CUDA libraries. Just install and it works if you have an NVIDIA GPU.
+**Q: Do I need internet?**
+A: Only to download the model and (optionally) GPU libraries — once. Transcription itself
+is fully offline.
 
 **Q: Which languages are supported?**
-A: All 99 languages that Whisper supports - from Afrikaans to Zulu, including English, Spanish, French, German, Chinese, Japanese, Arabic, and many more.
+A: 25 European languages via Parakeet TDT v3, with automatic detection or a fixed language.
+German is the default.
+
+**Q: Why is there no MSI installer?**
+A: PortableWhisper is distributed as a portable ZIP — unpack and run, no admin rights needed.
 
 **Q: How accurate is it?**
-A: Very! Using the same AI model that powers many commercial services. Accuracy improves with better quality models (Medium/Large) and GPU acceleration.
-
-**Q: Will this slow down my computer?**
-A: No. The app only uses resources when actively recording and transcribing. It sits quietly in the system tray otherwise.
-
-**Q: Can I use it for work?**
-A: Absolutely! Perfect for emails, documentation, meeting notes, and more. Since everything is local, it's suitable for confidential work.
+A: Parakeet TDT 0.6B v3 is a state-of-the-art streaming ASR model with excellent accuracy
+for European languages, especially German.
 
 ---
 
 ## 🛠️ Troubleshooting
 
-**Backend not starting?**
+**"Model not found" dialog at startup?**
+- Make sure `model/` contains all three files (`encoder-model.int4.onnx`,
+  `decoder_joint-model.int8.onnx`, `vocab.txt`).
+- Check `logs/whisper-backend.log` for details.
 
-```bash
-cd backend
-venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-
-**GPU not working?**
-
-- MSI installer: GPU should work automatically - check Device Manager for NVIDIA GPU
-- From source: Run `TEST_GPU.bat` to diagnose, see [INSTALLATION.md](INSTALLATION.md)
-- App automatically falls back to CPU if GPU fails
+**Backend won't start?**
+- Ensure no other app is using port `8765`.
+- Run `CHECK_GPU_STATUS.bat` from the app folder to diagnose the environment.
 
 **Hotkey not working?**
-
-- Check system tray - app must be running
-- Try restarting the app
-- Some apps may block global hotkeys
-
-📖 **[Full troubleshooting guide →](INSTALLATION.md#-troubleshooting)**
+- The app must be running (visible in the system tray).
+- Some applications block global hotkeys — try restarting PortableWhisper.
 
 ---
 
-## 📚 Learn More
+## 🧰 For Developers
 
-- **[INSTALLATION.md](INSTALLATION.md)** - Detailed setup guide
-- **[BUILD.md](BUILD.md)** - Building MSI installer for distribution
-- **[TECHNICAL.md](TECHNICAL.md)** - Technical documentation for developers
-- **[DEVELOPMENT_MODE.md](DEVELOPMENT_MODE.md)** - Development workflow guide
+PortableWhisper is built with:
 
----
+- **Backend:** Python 3.11 + FastAPI, speech recognition via [`onnx-asr`](https://github.com/istupakov/onnx-asr)
+  (pure Python, MIT) on ONNX Runtime.
+- **Frontend:** [Tauri 2](https://tauri.app) (Rust) with static HTML — no Node build step.
+- **Build:** portable ZIP via GitHub Actions (`windows-latest`), no local toolchain required.
 
-## 🤝 Contributing
-
-Found a bug? Have a feature request? Contributions are welcome!
-
-1. Fork the repository
-2. Create your feature branch
-3. Submit a pull request
+See `KONZEPT.md`, `PHASE1_PLAN.md`, and `PHASE2_PLAN.md` for the architecture and roadmap.
 
 ---
 
 ## 📝 License
 
-MIT License - Free to use and modify for personal or commercial use.
+MIT License — Copyright (c) 2026 ShareholderXXL.
+Based on the original project [Whisper4Windows](https://github.com/BaderJabri/Whisper4Windows) by Bader Aljabri.
+
+### Third-party components
+
+| Component | License |
+|---|---|
+| NVIDIA Parakeet TDT 0.6B v3 (ONNX) | CC-BY-4.0 |
+| onnx-asr | MIT |
+| ONNX Runtime | MIT |
+| Tauri 2 | MIT / Apache-2.0 |
 
 ---
 
-## ❤️ Acknowledgments
-
-Built with incredible open-source technology:
-
-- **Whisper** by OpenAI
-- **faster-whisper** by Systran
-- **Tauri** framework
-- **FastAPI** framework
-
-Inspired by Superwhisper for Mac.
-
----
-
-**Ready to transform your workflow? Download PortableWhisper now and experience the future of voice input on Windows.** 🎤
-
----
-
-## 📦 Modell-Installation
-
-PortableWhisper wird **ohne vorinstalliertes Modell** ausgeliefert, um die Download-Größe gering zu halten (~200 MB). Sie müssen das Modell einmalig manuell herunterladen und installieren.
-
-### Standardmodell: Whisper 3 Large Turbo
-
-**Empfohlenes Modell:** `Systran/faster-whisper-large-v3-turbo` (~1,6 GB)
-
-Dieses Modell bietet eine hervorragende Kombination aus Genauigkeit und Geschwindigkeit (Large-V3-Qualität mit Turbo-Performance).
-
-#### Installation
-
-**Option A: HuggingFace CLI (empfohlen)**
-
-```bash
-# 1. huggingface-cli installieren
-pip install huggingface-hub
-
-# 2. In den App-Ordner wechseln
-cd C:\Pfad\zu\PortableWhisper
-
-# 3. Modell herunterladen
-huggingface-cli download Systran/faster-whisper-large-v3-turbo --local-dir data/models/default/ --local-dir-use-symlinks False
-```
-
-**Option B: Manuelles Download**
-
-1. Öffnen Sie: https://huggingface.co/Systran/faster-whisper-large-v3-turbo
-2. Laden Sie alle Dateien herunter:
-   - `config.json`
-   - `model.bin`
-   - `tokenizer.json`
-   - `vocabulary.txt`
-   - (und alle weiteren Dateien im Repository)
-3. Kopieren Sie die Dateien in den Ordner: `data/models/default/`
-
-#### Struktur überprüfen
-
-Nach der Installation sollte `data/models/default/` mindestens diese Dateien enthalten:
-
-```
-data/models/default/
-├── config.json
-├── model.bin
-├── tokenizer.json
-└── vocabulary.txt
-```
-
-#### App starten
-
-Starten Sie `PortableWhisper.exe`. Das Backend lädt das Modell automatisch aus `data/models/default/`.
-
-### Modell ersetzen
-
-Sie können das Modell jederzeit durch ein anderes Whisper-Modell ersetzen:
-
-1. Schließen Sie PortableWhisper
-2. Ersetzen Sie die Dateien in `data/models/default/`
-3. Starten Sie die App neu
-
-**Kompatible Modelle** (alle im CTranslate2-Format):
-
-| Modell | Größe | Eigenschaft |
-|--------|-------|-------------|
-| `Systran/faster-whisper-tiny` | ~75 MB | Sehr schnell, geringere Genauigkeit |
-| `Systran/faster-whisper-base` | ~140 MB | Schnell |
-| `Systran/faster-whisper-small` | ~460 MB | Guter Kompromiss für CPU |
-| `Systran/faster-whisper-medium` | ~1,5 GB | Hohe Qualität |
-| `Systran/faster-whisper-large-v3` | ~3,0 GB | Maximale Qualität, GPU empfohlen |
-| `Systran/faster-whisper-large-v3-turbo` | ~1,6 GB | **Bestes Verhältnis (Standard)** |
-| `Reality-Interface/whisper-large-v3-german-faster-whisper` | ~3,0 GB | Bestes für deutsches Diktat |
-
-**WICHTIG:** Das Modell MUSS im **CTranslate2-Format** vorliegen (nicht im transformers-Format). Alle `faster-whisper-*` Modelle von Systran sind im richtigen Format.
-
-### Fehlerbehandlung
-
-Wenn Sie beim Start die Fehlermeldung "Modell nicht gefunden" erhalten:
-
-1. Stellen Sie sicher, dass `data/models/default/` existiert
-2. Überprüfen Sie, dass `config.json` und `model.bin` vorhanden sind
-3. Prüfen Sie `data/logs/whisper-backend.log` für detaillierte Fehlerinformationen
-4. Stellen Sie sicher, dass das Modell im CTranslate2-Format vorliegt
-
-### Performance-Tipps
-
-- **CPU-Only:** Whisper Small oder Base sind am besten für reine CPU-Nutzung
-- **Mit GPU:** Large V3 Turbo bietet das beste Verhältnis aus Qualität und Geschwindigkeit
-- **Deutsches Diktat:** Das German Fine-tuned Modell bietet die beste Genauigkeit für Deutsch
-- **Schnelles Diktat:** Tiny ist sehr schnell, aber weniger genau
+**Ready to dictate? Download PortableWhisper, drop in the model, and start speaking. 🎤**
