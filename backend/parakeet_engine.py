@@ -31,9 +31,16 @@ _REQUIRED_PARAKEET_FILES = [
     "vocab.txt",
 ]
 
+# Registered onnx-asr model name for Parakeet TDT v3. onnx_asr.load_model takes
+# the model name as the FIRST argument and the local directory as the SECOND
+# (quantization as keyword). Passing the directory as the model name raises
+# ModelNotSupportedError.
+MODEL_ID = "nemo-parakeet-tdt-0.6b-v3"
+
 _HF_FALLBACK_MODELS = [
-    "efederici/parakeet-tdt-0.6b-v3-onnx-int4",
+    "nemo-parakeet-tdt-0.6b-v3",                  # registered name -> correctly-named istupakov export
     "istupakov/parakeet-tdt-0.6b-v3-onnx",
+    "efederici/parakeet-tdt-0.6b-v3-onnx-int4",
 ]
 
 
@@ -75,7 +82,8 @@ class ParakeetEngine:
 
             if default_dir and self._is_local_model_present(default_dir):
                 logger.info(f"📥 Loading Parakeet from local directory: {default_dir}")
-                self.model = onnx_asr.load_model(str(default_dir))
+                self._ensure_compatible_local_files(default_dir)
+                self.model = onnx_asr.load_model(MODEL_ID, str(default_dir), quantization="int4")
                 self.is_loaded = True
                 logger.info("✅ Parakeet model loaded (local, offline)")
                 return True
@@ -105,6 +113,21 @@ class ParakeetEngine:
             return DEFAULT_MODELS_DIR
         except ImportError:
             return None
+
+    def _ensure_compatible_local_files(self, model_dir: Path) -> None:
+        """Make the local efederici int4/int8 export loadable by onnx-asr.
+
+        onnx-asr's int4 path expects `decoder_joint-model.int4.onnx`, but the
+        shipped efederici export names the decoder `decoder_joint-model.int8.onnx`.
+        Copy it to the expected name (idempotent, non-destructive) so the model
+        loads offline with no manual user step.
+        """
+        int8_dec = model_dir / "decoder_joint-model.int8.onnx"
+        int4_dec = model_dir / "decoder_joint-model.int4.onnx"
+        if int8_dec.exists() and not int4_dec.exists():
+            import shutil
+            logger.info(f"📋 Copying decoder for onnx-asr int4 naming: {int8_dec.name} -> {int4_dec.name}")
+            shutil.copy2(int8_dec, int4_dec)
 
     def _is_local_model_present(self, model_dir: Path) -> bool:
         return all((model_dir / f).exists() for f in _REQUIRED_PARAKEET_FILES)
