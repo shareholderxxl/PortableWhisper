@@ -40,6 +40,8 @@ a = Analysis(
         'soundfile',
         'numpy',
         'scipy',
+        'onnx_asr',
+        'onnxruntime',
         'runtime_hooks',
         'runtime_hooks.path_redirect',
     ],
@@ -59,19 +61,19 @@ a = Analysis(
         'torch',          # Phase 2: weiterhin OHNE torch
         'torchvision',
         'torchaudio',
-        'faster_whisper', # Phase 1 Engine — nicht mehr benötigt
-        'ctranslate2',    # Phase 1 Backend — nicht mehr benötigt
     ],
     noarchive=False,
     optimize=2,
 )
 
 # Phase 2: onnx-asr + onnxruntime collect_all für korrektes Bundling
+# PyInstaller >= 6 liefert 3 Werte zurück (datas, binaries, hiddenimports).
 from PyInstaller.utils.hooks import collect_all
-onnx_asr_binaries, onnx_asr_datas = collect_all('onnx_asr')
-onnx_runtime_binaries, onnx_runtime_datas = collect_all('onnxruntime')
-a.binaries += onnx_asr_binaries + onnx_runtime_binaries
-a.datas += onnx_asr_datas + onnx_runtime_datas
+asr_datas, asr_binaries, asr_hidden = collect_all('onnx_asr')
+ort_datas, ort_binaries, ort_hidden = collect_all('onnxruntime')
+a.binaries += asr_binaries + ort_binaries
+a.datas += asr_datas + ort_datas
+a.pure += asr_hidden + ort_hidden
 
 pyz = PYZ(a.pure)
 

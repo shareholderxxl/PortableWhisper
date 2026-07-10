@@ -1,8 +1,8 @@
-# PortableWhisper Backend — Portable Build-Dependencies (Phase 1)
+# PortableWhisper Backend — Portable Build-Dependencies (Phase 2)
 #
 # Zweck: PyInstaller-Build des Backends in eine eigenstaendige
-# whisper-backend.exe (Sidecar). Ohne torch (nur ctranslate2).
-# Python 3.11 empfohlen (PyInstaller-Kompatibilitaet).
+# whisper-backend.exe (Sidecar). onnx-asr + onnxruntime (OHNE torch,
+# OHNE ctranslate2). Python 3.11 empfohlen (PyInstaller-Kompatibilitaet).
 #
 # Install:
 #   python -m venv venv && venv\Scripts\activate
@@ -28,9 +28,10 @@ scipy>=1.12.0
 soundfile>=0.12.1
 pyaudio>=0.2.14  # Alternative fuer Windows WASAPI
 
-# Speech-to-Text (CTranslate2-Backend, OHNE torch)
-faster-whisper>=1.0.0
-huggingface_hub>=0.26.0  # fuer on-demand Modell-Download
+# Speech-to-Text (Phase 2 — Parakeet TDT v3 via onnx-asr, OHNE torch)
+onnx-asr>=0.11.0
+onnxruntime>=1.20.0      # direkt als Build-Dependency (nicht nur transitiv)
+huggingface_hub>=0.30.0  # fuer on-demand Modell-Download
 
 # Build-Tooling
 pyinstaller>=6.10.0
