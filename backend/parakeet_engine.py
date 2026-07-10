@@ -10,6 +10,7 @@ Modell-Speicherort (wie Phase 1): data/models/default/
   └── config.json                    (97 B)
 """
 import logging
+import os
 import numpy as np
 from pathlib import Path
 from typing import Optional, Dict
@@ -90,17 +91,31 @@ class ParakeetEngine:
                 logger.info("✅ Parakeet model loaded (local, offline)")
                 return True
 
-            for hf_name in _HF_FALLBACK_MODELS:
-                try:
-                    logger.info(f"📥 Loading Parakeet from HuggingFace: {hf_name}")
-                    self.model = onnx_asr.load_model(hf_name)
-                    self.is_loaded = True
-                    logger.info(f"✅ Parakeet model loaded (HF: {hf_name})")
-                    return True
-                except Exception as e:
-                    logger.warning(f"⚠️ {hf_name} failed: {e}, trying next...")
+            # HuggingFace-Download ist OPT-IN (Standard: manuell in data/models/default/).
+            # Ohne PW_ALLOW_HF_DOWNLOAD=1 laedt die App NIEMALS automatisch und
+            # schreibt daher auch nichts in den /models-Ordner.
+            allow_hf = os.environ.get("PW_ALLOW_HF_DOWNLOAD", "").strip().lower() in (
+                "1", "true", "yes", "on",
+            )
+            if allow_hf:
+                for hf_name in _HF_FALLBACK_MODELS:
+                    try:
+                        logger.info(f"📥 Loading Parakeet from HuggingFace: {hf_name}")
+                        self.model = onnx_asr.load_model(hf_name)
+                        self.is_loaded = True
+                        logger.info(f"✅ Parakeet model loaded (HF: {hf_name})")
+                        return True
+                    except Exception as e:
+                        logger.warning(f"⚠️ {hf_name} failed: {e}, trying next...")
 
-            logger.error("❌ All model loading strategies failed")
+                logger.error("❌ All HuggingFace model loading strategies failed")
+                return False
+
+            logger.error(
+                f"❌ Model not found in {default_dir}. Please place the Parakeet ONNX files "
+                f"(encoder-model.int4.onnx, decoder_joint-model.int8.onnx, vocab.txt) manually "
+                f"in that folder. Set PW_ALLOW_HF_DOWNLOAD=1 to allow automatic download."
+            )
             return False
 
         except Exception as e:
@@ -166,8 +181,7 @@ class ParakeetEngine:
             if len(audio_data.shape) > 1:
                 audio_data = audio_data.flatten()
 
-            result = self.model.recognize(audio_data)
-            text = result.get("text", "").strip()
+            text = self.model.recognize(audio_data).strip()
 
             logger.info(f"✅ Transcription complete!")
             logger.info(f"   Text: {text[:100]}..." if len(text) > 100 else f"   Text: {text}")
