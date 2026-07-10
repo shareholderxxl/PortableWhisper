@@ -36,8 +36,6 @@ a = Analysis(
         'pydantic',
         'pydantic_settings',
         'huggingface_hub',
-        'onnx_asr',
-        'onnxruntime',
         'sounddevice',
         'soundfile',
         'numpy',
@@ -67,6 +65,13 @@ a = Analysis(
     noarchive=False,
     optimize=2,
 )
+
+# Phase 2: onnx-asr + onnxruntime collect_all für korrektes Bundling
+from PyInstaller.utils.hooks import collect_all
+onnx_asr_binaries, onnx_asr_datas, _ = collect_all('onnx_asr')
+onnx_runtime_binaries, onnx_runtime_datas, _ = collect_all('onnxruntime')
+a.binaries += onnx_asr_binaries + onnx_runtime_binaries
+a.datas += onnx_asr_datas + onnx_runtime_datas
 
 pyz = PYZ(a.pure)
 

@@ -786,17 +786,6 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
-                        <div class="config-row-title">Cancel Recording</div>
-                        <div class="config-row-description">Discards the active recording</div>
-                    </div>
-                    <div class="config-row-right">
-                        <span class="reset-icon" onclick="resetShortcut('cancel')">↻</span>
-                        <div class="shortcut-badge" id="shortcut-cancel" onclick="captureShortcut('cancel')">Esc</div>
-                    </div>
-                </div>
-
-                <div class="config-row">
-                    <div class="config-row-left">
                         <div class="config-row-title">Recording Mode</div>
                         <div class="config-row-description">Diktier-Modus: Click-to-Toggle oder Push-to-Talk</div>
                     </div>
@@ -829,10 +818,7 @@
                 <div class="config-row">
                     <div class="config-row-left">
                         <div class="config-row-title">Aktives Modell</div>
-                        <div class="config-row-description">Whisper 3 Large Turbo (Standard). Modell kann in <code>data/models/default/</code> manuell ersetzt werden.</div>
-                    </div>
-                    <div class="config-row-right">
-                        <span class="status-indicator" id="modelStatusIndicator" style="cursor: default;">Prüfe...</span>
+                        <div class="config-row-description">Parakeet TDT v3 (Standard). Modell kann in <code>data/models/default/</code> manuell ersetzt werden.</div>
                     </div>
                 </div>
 
@@ -1190,7 +1176,6 @@
             // Update config page badges (already updated by the capture logic)
             // This is a safety net in case they get out of sync
             document.getElementById('shortcut-toggle').textContent = shortcuts.toggle;
-            document.getElementById('shortcut-cancel').textContent = shortcuts.cancel;
 
             // Sync to recording window
             const recordingWin = window.__TAURI_INTERNALS__.webviewWindow.getByLabel('recording');
