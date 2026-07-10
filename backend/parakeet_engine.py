@@ -16,13 +16,13 @@ from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
-try:
-    import onnx_asr
-    ONNX_ASR_AVAILABLE = True
-    logger.info("✅ onnx-asr is available")
-except ImportError as e:
-    ONNX_ASR_AVAILABLE = False
-    logger.warning(f"⚠️ onnx-asr not available: {e}")
+# NOTE: onnx_asr is imported LAZILY inside load_model(), not at module level.
+# Importing it here would pull the full onnx_asr -> onnxruntime -> huggingface_hub
+# graph into PyInstaller's static Analysis (which does an isolated import of each
+# dependency). Loading onnxruntime's native DLLs during that isolated subprocess
+# can stall/timeout the Analysis step on CI runners (Windows Defender scans the
+# DLLs). Bundling is handled separately via the spec's hiddenimports + collect_all,
+# so lazy import does not break the freeze.
 
 
 _REQUIRED_PARAKEET_FILES = [
@@ -69,8 +69,10 @@ class ParakeetEngine:
         self._original_device = device
 
     def load_model(self) -> bool:
-        if not ONNX_ASR_AVAILABLE:
-            logger.error("❌ onnx-asr is not installed!")
+        try:
+            import onnx_asr
+        except ImportError as e:
+            logger.error(f"❌ onnx-asr is not installed! ({e})")
             return False
 
         if self.is_loaded:

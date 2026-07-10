@@ -37,14 +37,19 @@ jobs:
         uses: actions/checkout@v5
 
       # Windows Defender auf den Runnern quarantaent frisch gebaute
-      # PyInstaller-Onefile-Exes (False Positive). Workspace freigeben.
-      - name: Exclude workspace from Defender
+      # PyInstaller-Onefile-Exes (False Positive) und scannt beim Bundling
+      # native DLLs (onnxruntime) -> kann den Analysis-Schritt blockieren.
+      # Workspace UND die Python-Umgebung (hostedtoolcache) freigeben.
+      - name: Exclude build paths from Defender
         run: |
-          try {
-            Set-MpPreference -ExclusionPath $env:GITHUB_WORKSPACE -ErrorAction Stop
-            Write-Host "Defender-Exclusion gesetzt fuer: $env:GITHUB_WORKSPACE"
-          } catch {
-            Write-Host "Defender-Exclusion nicht moeglich: $($_.Exception.Message)"
+          $paths = @($env:GITHUB_WORKSPACE, "C:\hostedtoolcache\windows\Python")
+          foreach ($p in $paths) {
+            try {
+              Set-MpPreference -ExclusionPath $p -ErrorAction Stop
+              Write-Host "Defender-Exclusion gesetzt fuer: $p"
+            } catch {
+              Write-Host "Defender-Exclusion nicht moeglich fuer $p : $($_.Exception.Message)"
+            }
           }
 
       # ============================================================
@@ -63,9 +68,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-portable.txt
 
+      # Pre-flight: stellt sicher, dass die schweren ML-Imports außerhalb von
+      # PyInstaller sauber laden (und nicht bereits hier haengen).
+      - name: Pre-flight import check
+        working-directory: backend
+        run: python -c "import onnx_asr, onnxruntime, huggingface_hub; print('imports OK')"
+
       - name: Build Backend (PyInstaller)
         working-directory: backend
-        run: pyinstaller --clean whisper-backend.spec
+        run: pyinstaller --clean --log-level DEBUG whisper-backend.spec
 
       - name: Verify sidecar binary
         run: |
