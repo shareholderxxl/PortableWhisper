@@ -90,36 +90,6 @@ Settings (F9 default, language, microphone, theme, GPU) are available from the
 - **Microphone:** built-in or external
 - **Disk:** ~600 MB (app + model)
 
-### GPU acceleration (optional)
-
-NVIDIA GPU users can enable CUDA acceleration. The CUDA libraries are **not bundled**
-— install them once from **Settings → Install GPU Libraries** (~600 MB download, on demand).
-The app automatically falls back to fast CPU mode if no GPU is present.
-
----
-
-## ❓ FAQ
-
-**Q: Is this really free?**
-A: Yes. MIT-licensed, open source, no subscriptions or API keys.
-
-**Q: Do I need internet?**
-A: Only to download the model and (optionally) GPU libraries — once. Transcription itself
-is fully offline.
-
-**Q: Which languages are supported?**
-A: 25 European languages via Parakeet TDT v3, with automatic detection or a fixed language.
-German is the default.
-
-**Q: Why is there no MSI installer?**
-A: PortableWhisper is distributed as a portable ZIP — unpack and run, no admin rights needed.
-
-**Q: How accurate is it?**
-A: Parakeet TDT 0.6B v3 is a state-of-the-art streaming ASR model with excellent accuracy
-for European languages, especially German.
-
----
-
 ## 🛠️ Troubleshooting
 
 **"Model not found" dialog at startup?**
