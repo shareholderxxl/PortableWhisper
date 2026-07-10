@@ -2,7 +2,7 @@
 Parakeet TDT STT Engine
 Handles model loading and transcription using onnx-asr + Parakeet TDT v3
 
-Modell-Speicherort (wie Phase 1): data/models/default/
+Modell-Speicherort: model/
   ├── encoder-model.int4.onnx       (373 MB, int4 Encoder)
   ├── decoder_joint-model.int8.onnx  (18 MB, int8 Decoder+Joint)
   ├── nemo128.int8.onnx              (41 KB, Mel-Preprocessor)
@@ -91,7 +91,7 @@ class ParakeetEngine:
                 logger.info("✅ Parakeet model loaded (local, offline)")
                 return True
 
-            # HuggingFace-Download ist OPT-IN (Standard: manuell in data/models/default/).
+            # HuggingFace-Download ist OPT-IN (Standard: manuell in model/).
             # Ohne PW_ALLOW_HF_DOWNLOAD=1 laedt die App NIEMALS automatisch und
             # schreibt daher auch nichts in den /models-Ordner.
             allow_hf = os.environ.get("PW_ALLOW_HF_DOWNLOAD", "").strip().lower() in (

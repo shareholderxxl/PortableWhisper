@@ -149,21 +149,21 @@ jobs:
           Write-Host "Main exe gebaut: $((Get-Item $exe).Length) Bytes"
 
       # ============================================================
-      # 4. Portables ZIP zusammenstellen
+      # 4. Portables ZIP zusammenstellen (flache Struktur, nur 1 Ebene)
       #    Struktur nach Entpacken:
-          #      PortableWhisper.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
+      #      PortableWhisper.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
       #      binaries/whisper-backend.exe
-      #      data/models/default/         (leer - User legt Modell ab)
-      #      data/temp/, data/logs/       (App-Daten, lokal im App-Ordner)
+      #      model/                       (leer - User legt Modell ab)
+      #      temp/, logs/                 (App-Daten, lokal im App-Ordner)
       #      README.md, LICENSE, LICENSES.md
       # ============================================================
       - name: Assemble portable ZIP
         run: |
           $stage = "${{ runner.temp }}/portable"
           New-Item -ItemType Directory -Force -Path "$stage/binaries" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$stage/data/models/default" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$stage/data/temp" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$stage/data/logs" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/model" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/temp" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage/logs" | Out-Null
 
           # Tauri baut mit --no-bundle die app.exe; fuer den Nutzer als
           # PortableWhisper.exe in das ZIP legen.
@@ -173,13 +173,13 @@ jobs:
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSES.md $stage/ -ErrorAction SilentlyContinue
 
-          # Platzhalter-README im default-Modellordner, damit User weiss,
+          # Platzhalter-README im Modellordner, damit User weiss,
           # wohin die ONNX-Modell-Dateien gehören.
-          Set-Content -Path "$stage/data/models/default/README.txt" -Value @"
-          PortableWhisper - Standardmodell-Ordner
-          =======================================
+          Set-Content -Path "$stage/model/README.txt" -Value @"
+          PortableWhisper - Modell-Ordner
+          ==============================
 
-          Legen Sie die Parakeet ONNX-Modell-Dateien in diesen Ordner,
+          Legen Sie die Parakeet ONNX-Modell-Dateien direkt in diesen Ordner,
           damit PortableWhisper funktioniert.
 
           Empfohlenes Modell: NVIDIA Parakeet TDT 0.6B v3 (ONNX int4)
@@ -192,7 +192,7 @@ jobs:
 
           Beispiel mit HuggingFace CLI:
             hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 `
-              --local-dir data/models/default/
+              --local-dir model/
 
           Alternativ: int8-Modell von istupakov/parakeet-tdt-0.6b-v3-onnx
           Siehe README.md fuer Details.

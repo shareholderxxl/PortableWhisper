@@ -172,7 +172,7 @@ _REQUIRED_DEFAULT_FILES = ["config.json", "model.bin"]
 def resolve_model_path(model: str):
     """Löst den Modellnamen auf einen lokalen Pfad auf.
 
-    Für den Namen "default" wird das Verzeichnis data/models/default/
+    Für den Namen "default" wird das Verzeichnis model/
     geprüft. Enthält es die erforderlichen CTranslate2-Dateien, wird der Pfad
     zurückgegeben. Für andere Modellnamen wird (None, False) geliefert, damit
     der bestehende HF-Cache-Pfad verwendet wird.
@@ -311,7 +311,7 @@ class WhisperEngine:
         if model_size is None:
             model_size = self.model_size
 
-        # Spezialbehandlung für das feste Standardmodell in data/models/default/
+        # Spezialbehandlung für das feste Standardmodell in model/
         if model_size.lower() == "default":
             default_dir = get_default_models_dir()
             if all((default_dir / f).exists() for f in _REQUIRED_DEFAULT_FILES):
@@ -344,7 +344,7 @@ class WhisperEngine:
         Load the Whisper model with automatic GPU compute type fallback, then CPU fallback
 
         Für das Standardmodell ("default") wird ausschließlich der Ordner
-        data/models/default/ verwendet — es findet KEIN Auto-Download statt.
+        model/ verwendet — es findet KEIN Auto-Download statt.
 
         Returns:
             True if successful, False otherwise
@@ -363,13 +363,13 @@ class WhisperEngine:
             logger.info(f"   Compute type: {self.compute_type}")
 
             # ----------------------------------------------------------
-            # Standardmodell ("default") aus data/models/default/ laden.
+            # Standardmodell ("default") aus model/ laden.
             # Kein Auto-Download, kein HF-Cache.
             # ----------------------------------------------------------
             if self.model_size.lower() == "default":
                 model_path, _ = resolve_model_path(self.model_size)
                 if model_path is None:
-                    logger.error("❌ Standardmodell fehlt in data/models/default/")
+                    logger.error("❌ Standardmodell fehlt in model/")
                     logger.error(f"   Erforderliche Dateien: {_REQUIRED_DEFAULT_FILES}")
                     logger.error("   Bitte CTranslate2-Modell-Dateien dorthin kopieren.")
                     return False

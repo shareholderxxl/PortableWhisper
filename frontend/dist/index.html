@@ -818,7 +818,7 @@
                 <div class="config-row">
                     <div class="config-row-left">
                         <div class="config-row-title">Aktives Modell</div>
-                        <div class="config-row-description">Parakeet TDT v3 (Standard). Modell kann in <code>data/models/default/</code> manuell ersetzt werden.</div>
+                        <div class="config-row-description">Parakeet TDT v3 (Standard). Modell kann in <code>model/</code> manuell ersetzt werden.</div>
                     </div>
                 </div>
 
@@ -875,37 +875,6 @@
                 </div>
             </div>
 
-            <!-- Application Section -->
-            <div class="config-section">
-                <h3 class="config-section-title">Application</h3>
-
-                <!-- About Section -->
-                <div class="config-section" style="margin-top: 30px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-                    <h3 class="config-section-title">About</h3>
-
-                    <div class="config-row">
-                        <div class="config-row-left">
-                            <div class="config-row-title">PortableWhisper</div>
-                            <div class="config-row-description">Lokales Speech-to-Text-Tool für Windows.</div>
-                        </div>
-                        <div class="config-row-right">
-                            <span style="font-size: 0.9rem; color: var(--text-secondary); margin-right: 8px;">v0.1.0</span>
-                        </div>
-                    </div>
-
-                    <div class="config-row">
-                        <div class="config-row-left">
-                            <div class="config-row-title">License & Fork Attribution</div>
-                            <div class="config-row-description">Released under MIT License. Forked from the original project by Bader Aljabri.</div>
-                        </div>
-                        <div class="config-row-right">
-                            <button class="btn" onclick="openOriginalGitHub()">Original GitHub</button>
-                        </div>
-                    </div>
-                </div>
-
-
-            </div>
         </div>
 
         <!-- SOUND PAGE -->
@@ -979,6 +948,7 @@
                 <div class="config-row-description" style="line-height: 1.7;">
                     <p><strong>Lizenz:</strong> MIT License</p>
                     <p><strong>Urheber:</strong> Copyright (c) 2024 ShareholderXXL</p>
+                    <p><strong>Version:</strong> 2.05</p>
                     <p><strong>Fork attribution:</strong> Basiert auf dem Originalprojekt von Bader Aljabri.</p>
                     <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/PortableWhisper" onclick="openExternalLink(event, 'https://github.com/shareholderxxl/PortableWhisper')">github.com/shareholderxxl/PortableWhisper</a></p>
                     <p><strong>Vollständiger Lizenztext:</strong> Siehe <code>LICENSE</code> Datei im App-Ordner.</p>
@@ -1234,6 +1204,8 @@
                 let statusText = `${data.backend.toUpperCase()} Ready`;
                 if (data.model_status === 'loaded') {
                     statusText += ` (Modell geladen)`;
+                } else if (data.model_status === 'loading') {
+                    statusText += ` (Modell lädt...)`;
                 } else if (data.model_status === 'missing') {
                     statusText += ` (Modell fehlt!)`;
                 }
@@ -1622,6 +1594,11 @@
                 el.className = 'status-indicator';
                 el.style.background = 'rgba(52, 211, 153, 0.15)';
                 el.style.color = '#34d399';
+            } else if (modelStatus === 'loading') {
+                el.textContent = 'Lädt...';
+                el.className = 'status-indicator';
+                el.style.background = 'rgba(251, 191, 36, 0.15)';
+                el.style.color = '#fbbf24';
             } else if (modelStatus === 'available') {
                 el.textContent = 'Verfügbar';
                 el.className = 'status-indicator';
@@ -1643,22 +1620,22 @@
             dialog.innerHTML = `
                 <div class="dialog-content">
                     <h2>❌ Modell nicht gefunden</h2>
-                    <p>PortableWhisper benötigt ein Parakeet ONNX-Modell, aber <code>data/models/default/</code> ist leer oder fehlt.</p>
+                    <p>PortableWhisper benötigt ein Parakeet ONNX-Modell, aber <code>model/</code> ist leer oder fehlt.</p>
                     <h3>So installieren Sie das Modell:</h3>
                     <div class="install-method">
                         <strong>Option A: HuggingFace CLI (empfohlen)</strong>
                         <pre>pip install huggingface-hub
-hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir data/models/default/</pre>
+hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/</pre>
                     </div>
                     <div class="install-method">
                         <strong>Option B: Manuelles Download</strong>
                         <ol>
                             <li>Öffnen Sie: <a href="https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4" onclick="openExternalLink(event, 'https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4')">huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4</a></li>
                             <li>Laden Sie alle ONNX-Dateien herunter</li>
-                            <li>Kopieren Sie die Dateien nach <code>data/models/default/</code></li>
+                            <li>Kopieren Sie die Dateien nach <code>model/</code></li>
                         </ol>
                     </div>
-                    <h3>Erforderliche Dateien in <code>data/models/default/</code>:</h3>
+                    <h3>Erforderliche Dateien in <code>model/</code>:</h3>
                     <ul>
                         <li><code>encoder-model.int4.onnx</code></li>
                         <li><code>decoder_joint-model.int8.onnx</code></li>

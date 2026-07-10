@@ -43,12 +43,12 @@ if %errorlevel% equ 0 (
 echo.
 
 echo [4/5] Checking downloaded GPU libraries...
-if exist "%APPDATA%\PortableWhisper\gpu_libs\nvidia" (
+if exist "%~dp0gpu_libs\nvidia" (
     echo ✓ GPU libraries folder exists
-    dir "%APPDATA%\PortableWhisper\gpu_libs\nvidia" /b
+    dir "%~dp0gpu_libs\nvidia" /b
     echo.
     echo Checking cuDNN DLLs...
-    dir "%APPDATA%\PortableWhisper\gpu_libs\nvidia\cudnn\bin\*.dll" 2>nul
+    dir "%~dp0gpu_libs\nvidia\cudnn\bin\*.dll" 2>nul
     if %errorlevel% equ 0 (
         echo ✓ cuDNN DLLs found
     ) else (
@@ -56,7 +56,7 @@ if exist "%APPDATA%\PortableWhisper\gpu_libs\nvidia" (
     )
 ) else (
     echo ✗ GPU libraries NOT installed
-    echo   Location: %APPDATA%\PortableWhisper\gpu_libs\nvidia
+    echo   Location: %~dp0gpu_libs\nvidia
     echo.
     echo   ACTION REQUIRED:
     echo   1. Run PortableWhisper

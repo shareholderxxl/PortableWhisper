@@ -2,9 +2,12 @@
 Pfad-Management für PortableWhisper.
 
 Lenkt alle Dateioperationen (Modelle, temporäre Audio-Chunks, Logs, GPU-Libs,
-HF-Cache) in ein einziges Benutzerverzeichnis unter
-    %LOCALAPPDATA%/PortableWhisper/   (Windows)
-    ~/.local/share/PortableWhisper/   (Linux/macOS)
+HF-Cache) in den direkten App-Ordner auf eine flache Struktur:
+    <App_Root>/model/     - ONNX-Modell (vom User manuell platziert)
+    <App_Root>/temp/      - temporäre Audio-Chunks
+    <App_Root>/logs/      - Backend-Logs
+    <App_Root>/gpu_libs/  - GPU-Bibliotheken (Optional)
+    <App_Root>/cache/     - HuggingFace-Cache (runtime)
 
 Wird so früh wie möglich importiert (Top of main.py), damit die Umgebungs-
 variablen für den HuggingFace-Cache gesetzt sind, BEVOR huggingface_hub /
@@ -31,16 +34,16 @@ def get_appdata_dir() -> Path:
         # Im Entwicklungsmodus liegt das Skript in: <App_Root>/backend/runtime_hooks/path_redirect.py
         # Das Hauptverzeichnis liegt somit drei Ebenen darüber.
         app_root = Path(__file__).parent.parent.parent
-    
-    return app_root / "data"
+
+    return app_root
 
 
-# Basisverzeichnis
+# Basisverzeichnis (direkt im App-Ordner, eine Ebene tief)
 APP_DIR: Path = get_appdata_dir()
 
-# Einzelne Sub-Verzeichnisse
-MODELS_DIR: Path = APP_DIR / "models"
-DEFAULT_MODELS_DIR: Path = APP_DIR / "models" / "default"
+# Einzelne Sub-Verzeichnisse (flache Struktur, nur eine Ebene unter App_Root)
+MODELS_DIR: Path = APP_DIR / "model"
+DEFAULT_MODELS_DIR: Path = APP_DIR / "model"
 TEMP_DIR: Path = APP_DIR / "temp"
 LOGS_DIR: Path = APP_DIR / "logs"
 GPU_LIBS_DIR: Path = APP_DIR / "gpu_libs"
@@ -50,10 +53,10 @@ CACHE_DIR: Path = APP_DIR / "cache"
 for _d in (MODELS_DIR, DEFAULT_MODELS_DIR, TEMP_DIR, LOGS_DIR, GPU_LIBS_DIR, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
-# HuggingFace-Cache umleiten — MUSS vor jedem HF-Import gesetzt sein.
-os.environ.setdefault("HF_HOME", str(MODELS_DIR))
-os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(MODELS_DIR))
-os.environ.setdefault("TRANSFORMERS_CACHE", str(MODELS_DIR))
+# HuggingFace-Cache wird absichtlich NICHT mehr auf model/ umgeleitet.
+# Die App laedt das Modell nur manuell aus model/ (PW_ALLOW_HF_DOWNLOAD
+# ist Opt-In); ohne Download soll model/ ausschliesslich die ONNX-Dateien
+# enthalten. Ein HF-Download (Opt-In) landet im Standard-Systemcache.
 os.environ.setdefault("XDG_CACHE_HOME", str(CACHE_DIR))
 # Temp-Verzeichnis für Audio-Chunks ebenfalls umleiten
 os.environ.setdefault("TMPDIR", str(TEMP_DIR))

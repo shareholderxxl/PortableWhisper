@@ -4,7 +4,7 @@
 #
 # Phase-2-Vorgaben (siehe PHASE2_PLAN.md):
 #   - Modell wird NICHT eingebettet (datas=[]); User kopiert ONNX-Dateien
-#     nach data/models/default/.
+#     nach model/.
 #   - onnx-asr + onnxruntime statt faster-whisper + ctranslate2.
 #   - console=False: kein Konsolenfenster beim Sidecar-Start (unsichtbar).
 #     stdout/stderr-None-Guard liegt in runtime_hooks/path_redirect.py.
@@ -30,7 +30,7 @@ a = Analysis(
     ['main.py'],
     pathex=[str(backend_dir)],
     binaries=asr_bins + ort_bins,
-    datas=asr_datas + ort_datas,  # ONNX-Modell selbst nicht einbetten — liegt in data/models/default/
+    datas=asr_datas + ort_datas,  # ONNX-Modell selbst nicht einbetten — liegt in model/
     hiddenimports=[
         'uvicorn',
         'uvicorn.logging',

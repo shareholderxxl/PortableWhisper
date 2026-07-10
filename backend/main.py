@@ -67,7 +67,7 @@ model_load_task: Optional[asyncio.Task] = None
 
 # Pydantic models
 class StartRequest(BaseModel):
-    model_size: str = "default"  # "default" = data/models/default/ Ordner
+    model_size: str = "default"  # "default" = model/ Ordner
     language: Optional[str] = None  # Language code or None for auto-detect
     device: str = "auto"  # auto, cpu, cuda
     device_index: Optional[int] = None  # Microphone device index (None = default)
@@ -171,7 +171,7 @@ async def health_check():
     Wird vom Tauri-Frontend periodisch gepollt. model_status ist:
       - 'loaded'    : Modell im Speicher aktiv
       - 'available' : Modell lokal vorhanden, aber nicht geladen
-      - 'missing'   : Modell fehlt in data/models/default/
+      - 'missing'   : Modell fehlt in model/
     """
     global whisper_engine
 
@@ -184,6 +184,8 @@ async def health_check():
         if whisper_engine.is_loaded:
             model = str(whisper_engine.model_size)
             model_status = "loaded"
+        elif is_model_loading:
+            model_status = "loading"
         elif whisper_engine.is_model_downloaded():
             model_status = "available"
 
@@ -288,11 +290,11 @@ async def load_model(request: StartRequest):
             if not success:
                 error_msg = "Failed to load Parakeet model."
                 if whisper_engine.model_size.lower() == "default" and not whisper_engine.is_model_downloaded():
-                    error_msg += " Please place ONNX model files in data/models/default/"
+                    error_msg += " Please place ONNX model files in model/"
                 return {
                     "status": "error",
                     "message": error_msg,
-                    "details": "Place Parakeet ONNX files in data/models/default/."
+                    "details": "Place Parakeet ONNX files in model/."
                 }
 
             logger.info(f"✅ Model loaded: {request.model_size} on {whisper_engine.device}")
