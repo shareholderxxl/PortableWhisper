@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from audio_capture import AudioCapture
 from parakeet_engine import ParakeetEngine
 import gpu_manager
+from text_cleanup import clean_text
 
 # Konfiguration
 BACKEND_HOST = "127.0.0.1"  # localhost only — kein externer Zugriff
@@ -60,6 +61,7 @@ last_transcribed_text = ""
 is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
+text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -598,6 +600,10 @@ async def stop_recording():
             }
 
         final_text = result["text"].strip()
+
+        if text_cleanup_enabled:
+            final_text = clean_text(final_text)
+
         logger.info(f"✅ Transcription complete!")
         logger.info(f"📝 Final text: {final_text[:100]}..." if len(final_text) > 100 else f"📝 Final text: {final_text}")
 
@@ -826,6 +832,22 @@ async def uninstall_gpu_libs():
             "success": False,
             "error": str(e)
         }
+
+
+# ============================================================
+# Phase 3A: Text Cleanup Settings
+# ============================================================
+
+@app.get("/settings/cleanup")
+async def get_cleanup_setting():
+    return {"enabled": text_cleanup_enabled}
+
+@app.post("/settings/cleanup")
+async def set_cleanup_setting(payload: dict):
+    global text_cleanup_enabled
+    text_cleanup_enabled = bool(payload.get("enabled", True))
+    logger.info(f"🧹 Text cleanup {'enabled' if text_cleanup_enabled else 'disabled'}")
+    return {"enabled": text_cleanup_enabled}
 
 
 # Run the server

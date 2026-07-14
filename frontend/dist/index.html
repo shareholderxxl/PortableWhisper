@@ -834,6 +834,16 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
+                        <div class="config-row-title">Textbereinigung</div>
+                        <div class="config-row-description">Fülllaute, Wortwiederholungen und Stottern automatisch entfernen</div>
+                    </div>
+                    <div class="config-row-right">
+                        <div class="toggle-switch active" id="cleanupToggle" onclick="toggleTextCleanup()"></div>
+                    </div>
+                </div>
+
+                <div class="config-row">
+                    <div class="config-row-left">
                         <div class="config-row-title">Language</div>
                         <div class="config-row-description">Select transcription language</div>
                     </div>
@@ -1314,6 +1324,40 @@
             }
         }
 
+        async function toggleTextCleanup() {
+            const toggle = document.getElementById('cleanupToggle');
+            const enabled = !toggle.classList.contains('active');
+            if (enabled) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+            try {
+                await fetch(`${BACKEND_URL}/settings/cleanup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+            } catch (error) {
+                console.error('❌ Error setting text cleanup:', error);
+            }
+        }
+
+        async function loadTextCleanupSetting() {
+            try {
+                const resp = await fetch(`${BACKEND_URL}/settings/cleanup`);
+                const data = await resp.json();
+                const toggle = document.getElementById('cleanupToggle');
+                if (data.enabled) {
+                    toggle.classList.add('active');
+                } else {
+                    toggle.classList.remove('active');
+                }
+            } catch (e) {
+                console.error('Could not load cleanup setting:', e);
+            }
+        }
+
         async function toggleLaunchOnStartup() {
             const toggle = document.getElementById('launchOnStartupToggle');
             launchOnStartup = !launchOnStartup;
@@ -1578,8 +1622,17 @@
                 const data = await response.json();
                 updateModelStatusIndicator(data.model_status);
                 if (data.model_status === 'missing' && !sessionStorage.getItem('missingModelShown')) {
-                    showMissingModelDialog();
-                    sessionStorage.setItem('missingModelShown', 'true');
+                    await new Promise(r => setTimeout(r, 3000));
+                    const retryResp = await fetch(`${BACKEND_URL}/health`, {
+                        headers: { 'Accept': 'application/json' },
+                        signal: AbortSignal.timeout(3000)
+                    });
+                    const retry = await retryResp.json();
+                    updateModelStatusIndicator(retry.model_status);
+                    if (retry.model_status === 'missing') {
+                        showMissingModelDialog();
+                        sessionStorage.setItem('missingModelShown', 'true');
+                    }
                 }
             } catch (e) {
                 console.error('Health check fehlgeschlagen:', e);
@@ -2032,6 +2085,9 @@ hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/</pre>
             } catch (error) {
                 console.error('❌ Error loading clipboard paste setting:', error);
             }
+
+            // Load text cleanup setting (Phase 3A)
+            await loadTextCleanupSetting();
 
             // Load launch on startup setting
             try {
