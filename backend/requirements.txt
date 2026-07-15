@@ -27,3 +27,6 @@ onnxruntime>=1.20.0
 huggingface-hub>=0.30.0
 # Für GPU/NPU-Beschleunigung (Phase 2B):
 # onnxruntime-directml>=1.20.0  # ersetzt onnxruntime
+
+# LLM-Post-Processing (Phase 3B: Qwen3.5-0.8B Korrektur via plain onnxruntime)
+tokenizers>=0.21.0  # Tokenisierung des Korrektur-Modells (tokenizer.json)

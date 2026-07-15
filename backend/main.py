@@ -24,6 +24,7 @@ from audio_capture import AudioCapture
 from parakeet_engine import ParakeetEngine
 import gpu_manager
 from text_cleanup import clean_text
+from text_correction import correct_text  # Phase 3B: LLM-gestuetzte Korrektur
 
 # Konfiguration
 BACKEND_HOST = "127.0.0.1"  # localhost only — kein externer Zugriff
@@ -62,6 +63,7 @@ is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
+llm_correction_enabled = True  # Phase 3B: LLM-gestuetzte Korrektur (Qwen3.5-0.8B, lazy, Fallback auf Rohtext)
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -652,6 +654,11 @@ async def stop_recording():
         if text_cleanup_enabled:
             final_text = clean_text(final_text)
 
+        # Phase 3B: LLM-Korrektur (CPU-bound, im Executor ausfuehren; lazy-load
+        # beim ersten Aufruf). Bei Fehler liefert correct_text den Rohtext.
+        if llm_correction_enabled:
+            final_text = await loop.run_in_executor(None, correct_text, final_text)
+
         logger.info(f"✅ Transcription complete!")
         logger.info(f"📝 Final text: {final_text[:100]}..." if len(final_text) > 100 else f"📝 Final text: {final_text}")
 
@@ -896,6 +903,23 @@ async def set_cleanup_setting(payload: dict):
     text_cleanup_enabled = bool(payload.get("enabled", True))
     logger.info(f"🧹 Text cleanup {'enabled' if text_cleanup_enabled else 'disabled'}")
     return {"enabled": text_cleanup_enabled}
+
+
+# ============================================================
+# Phase 3B: LLM Correction Settings
+# ============================================================
+
+@app.get("/settings/correction")
+async def get_correction_setting():
+    return {"enabled": llm_correction_enabled}
+
+
+@app.post("/settings/correction")
+async def set_correction_setting(payload: dict):
+    global llm_correction_enabled
+    llm_correction_enabled = bool(payload.get("enabled", True))
+    logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}")
+    return {"enabled": llm_correction_enabled}
 
 
 # Run the server

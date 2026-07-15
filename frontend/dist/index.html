@@ -844,6 +844,16 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
+                        <div class="config-row-title">LLM-Korrektur</div>
+                        <div class="config-row-description">Grammatik &amp; Disfluenzen mit lokalem KI-Modell glätten (Qwen3.5-0.8B, benötigt Modell in <code>model/</code>)</div>
+                    </div>
+                    <div class="config-row-right">
+                        <div class="toggle-switch active" id="correctionToggle" onclick="toggleLlmCorrection()"></div>
+                    </div>
+                </div>
+
+                <div class="config-row">
+                    <div class="config-row-left">
                         <div class="config-row-title">Language</div>
                         <div class="config-row-description">Select transcription language</div>
                     </div>
@@ -1355,6 +1365,40 @@
                 }
             } catch (e) {
                 console.error('Could not load cleanup setting:', e);
+            }
+        }
+
+        async function toggleLlmCorrection() {
+            const toggle = document.getElementById('correctionToggle');
+            const enabled = !toggle.classList.contains('active');
+            if (enabled) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+            try {
+                await fetch(`${BACKEND_URL}/settings/correction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+            } catch (error) {
+                console.error('❌ Error setting LLM correction:', error);
+            }
+        }
+
+        async function loadLlmCorrectionSetting() {
+            try {
+                const resp = await fetch(`${BACKEND_URL}/settings/correction`);
+                const data = await resp.json();
+                const toggle = document.getElementById('correctionToggle');
+                if (data.enabled) {
+                    toggle.classList.add('active');
+                } else {
+                    toggle.classList.remove('active');
+                }
+            } catch (e) {
+                console.error('Could not load LLM correction setting:', e);
             }
         }
 
@@ -2088,6 +2132,9 @@ hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/</pre>
 
             // Load text cleanup setting (Phase 3A)
             await loadTextCleanupSetting();
+
+            // Load LLM correction setting (Phase 3B)
+            await loadLlmCorrectionSetting();
 
             // Load launch on startup setting
             try {

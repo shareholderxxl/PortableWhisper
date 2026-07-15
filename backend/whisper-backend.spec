@@ -25,12 +25,14 @@ def _gather(pkg):
 
 asr_datas, asr_bins, asr_hidden = _gather('onnx_asr')
 ort_datas, ort_bins, ort_hidden = _gather('onnxruntime')
+# Phase 3B: tokenizers (Rust-Backend + Daten) fuer das Korrektur-Modell
+tok_datas, tok_bins, tok_hidden = _gather('tokenizers')
 
 a = Analysis(
     ['main.py'],
     pathex=[str(backend_dir)],
-    binaries=asr_bins + ort_bins,
-    datas=asr_datas + ort_datas,  # ONNX-Modell selbst nicht einbetten — liegt in model/
+    binaries=asr_bins + ort_bins + tok_bins,
+    datas=asr_datas + ort_datas + tok_datas,  # ONNX-Modell selbst nicht einbetten — liegt in model/
     hiddenimports=[
         'uvicorn',
         'uvicorn.logging',
@@ -55,7 +57,9 @@ a = Analysis(
         'runtime_hooks.path_redirect',
         'onnx_asr',
         'onnxruntime',
-    ] + asr_hidden + ort_hidden,
+        'tokenizers',
+        'text_correction',
+    ] + asr_hidden + ort_hidden + tok_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[str(backend_dir / 'runtime_hooks' / 'path_redirect.py')],
