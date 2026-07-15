@@ -13,7 +13,7 @@ name: Build Windows Portable
 
 on:
   push:
-    branches: [main, phase-1, phase-1-2, phase-2, phase-3]
+    branches: [main, phase-1, phase-1-2, phase-2, phase-3, phase-3b]
     tags: ['v*']
   pull_request:
     branches: [main]
