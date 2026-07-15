@@ -72,7 +72,7 @@ jobs:
       # PyInstaller sauber laden (und nicht bereits hier haengen).
       - name: Pre-flight import check
         working-directory: backend
-        run: python -c "import onnx_asr, onnxruntime, huggingface_hub; print('imports OK')"
+        run: python -c "import onnx_asr, onnxruntime, huggingface_hub, tokenizers; print('imports OK')"
 
       - name: Build Backend (PyInstaller)
         working-directory: backend

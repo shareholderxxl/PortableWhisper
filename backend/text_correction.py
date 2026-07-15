@@ -123,20 +123,38 @@ class TextCorrector:
     def get_model_dir(self) -> str:
         return self.model_dir if self.model_dir else _resolve_model_dir()
 
+    def _resolve_layout(self):
+        """Findet (onnx_dir, quant), indem Decoder+Embed gesucht werden.
+        Kandidaten-Reihenfolge: onnx/ Subfolder (bevorzugte Quant, dann Fallback),
+        danach flat im Modell-Root (gleiche Quant-Reihenfolge). So wird das Modell
+        gefunden egal ob die Dateien in onnx/ ODER flach liegen, und egal ob
+        q4 ODER q4f16. Bei Nichtfinden Default (onnx/<quant>) fuer die Meldung."""
+        md = Path(self.get_model_dir())
+        dirs = [md / "onnx", md]                      # onnx/ zuerst, dann flat
+        quants = [self.quant, "q4f16"] if self.quant == "q4" else [self.quant, "q4"]
+        for d in dirs:
+            for q in quants:
+                if (d / f"decoder_model_merged_{q}.onnx").exists() \
+                        and (d / f"embed_tokens_{q}.onnx").exists():
+                    return str(d), q
+        return str(md / "onnx"), self.quant           # Default-Erwartung (-> 'missing')
+
     def _onnx_dir(self) -> str:
-        d = Path(self.get_model_dir())
-        sub = d / "onnx"
-        return str(sub) if sub.is_dir() else str(d)
+        return self._resolve_layout()[0]
+
+    def get_layout(self):
+        """-> (onnx_dir, quant): tatsaechlich aufgeloester Ablageort + Quant."""
+        return self._resolve_layout()
 
     def check_files(self):
-        """Prueft die benoetigten Modell-Dateien. -> (present, missing_list)."""
+        """Prueft die benoetigten Modell-Dateien (auto-aufgeloest). -> (present, missing)."""
+        od, q = self._resolve_layout()
         md = self.get_model_dir()
-        od = self._onnx_dir()
         required = [
-            os.path.join(od, f"decoder_model_merged_{self.quant}.onnx"),
-            os.path.join(od, f"decoder_model_merged_{self.quant}.onnx_data"),
-            os.path.join(od, f"embed_tokens_{self.quant}.onnx"),
-            os.path.join(od, f"embed_tokens_{self.quant}.onnx_data"),
+            os.path.join(od, f"decoder_model_merged_{q}.onnx"),
+            os.path.join(od, f"decoder_model_merged_{q}.onnx_data"),
+            os.path.join(od, f"embed_tokens_{q}.onnx"),
+            os.path.join(od, f"embed_tokens_{q}.onnx_data"),
             os.path.join(md, "tokenizer.json"),
         ]
         missing = [f for f in required if not os.path.exists(f)]
@@ -178,9 +196,9 @@ class TextCorrector:
 
             try:
                 t0 = time.time()
-                onnx_dir = self._onnx_dir()
-                emb_path = os.path.join(onnx_dir, f"embed_tokens_{self.quant}.onnx")
-                dec_path = os.path.join(onnx_dir, f"decoder_model_merged_{self.quant}.onnx")
+                onnx_dir, q = self._resolve_layout()
+                emb_path = os.path.join(onnx_dir, f"embed_tokens_{q}.onnx")
+                dec_path = os.path.join(onnx_dir, f"decoder_model_merged_{q}.onnx")
                 tok_path = os.path.join(self.get_model_dir(), "tokenizer.json")
 
                 so = ort.SessionOptions()
@@ -196,11 +214,12 @@ class TextCorrector:
                 self._embed_input = self._embed.get_inputs()[0].name
                 self._dec_inputs = [(i.name, i.shape, i.type) for i in self._decoder.get_inputs()]
                 self._output_names = [o.name for o in self._decoder.get_outputs()]
+                self.quant = q  # genutzte Variante merken (fuer Status/Meldung)
                 self._loaded = True
                 self._load_state = "loaded"
                 self._load_error = ""
                 logger.info(
-                    f"✅ TextCorrector geladen ({self.quant}) aus {self.get_model_dir()} "
+                    f"✅ TextCorrector geladen ({q}) aus {self.get_model_dir()} "
                     f"in {time.time() - t0:.1f}s"
                 )
                 return True

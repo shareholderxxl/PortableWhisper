@@ -856,7 +856,7 @@
                 <div class="config-row" style="flex-direction:column;align-items:stretch;gap:10px;">
                     <div class="config-row-left" style="flex-direction:column;align-items:stretch;gap:4px;">
                         <div class="config-row-title">Korrektur-Prompt</div>
-                        <div class="config-row-description">Nur der inhaltliche Teil (technisches Gerüst bleibt fix). Modellordner: <code id="correctionModelPath">model/qwen3.5-0.8b-onnx/</code></div>
+                        <div class="config-row-description">Nur der inhaltliche Teil (technisches Gerüst bleibt fix). ONNX-Dateien gesucht in <code id="correctionModelPath">model\qwen3.5-0.8b-onnx\</code> oder <code>...\onnx\</code> (q4/q4f16)</div>
                     </div>
                     <textarea id="correctionPrompt" rows="4" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-main);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;" placeholder="System-Anweisung an das Korrektur-Modell..."></textarea>
                     <div style="display:flex;gap:10px;align-items:center;">
@@ -1420,10 +1420,10 @@
                     ta.value = data.prompt;
                 }
                 const pathEl = document.getElementById('correctionModelPath');
-                if (pathEl && data.model_path) {
-                    pathEl.textContent = data.model_path;
+                if (pathEl && data.onnx_dir) {
+                    pathEl.textContent = data.onnx_dir;
                 }
-                updateCorrectionStatusIndicator(data.status);
+                updateCorrectionStatusIndicator(data.status, data.missing_files, data.quant);
             } catch (e) {
                 console.error('Could not load LLM correction setting:', e);
             }
@@ -1452,7 +1452,7 @@
             }
         }
 
-        function updateCorrectionStatusIndicator(status) {
+        function updateCorrectionStatusIndicator(status, missingFiles, quant) {
             const el = document.getElementById('correctionStatusBadge');
             if (!el) return;
             const map = {
@@ -1467,6 +1467,12 @@
             el.textContent = text;
             el.style.background = bg;
             el.style.color = color;
+            // Tooltip: Status + Quant + fehlende Dateien (Dateinamen ohne Pfad)
+            let tip = 'Korrektur-Modell: ' + text + (quant ? ' (' + quant + ')' : '');
+            if ((status === 'missing' || status === 'error') && Array.isArray(missingFiles) && missingFiles.length) {
+                tip += '\nFehlt: ' + missingFiles.map(f => f.split(/[\\/]/).pop()).join(', ');
+            }
+            el.title = tip;
         }
 
         async function toggleLaunchOnStartup() {

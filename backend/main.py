@@ -953,10 +953,13 @@ async def get_correction_setting():
         status, missing = text_corrector.get_status()
     else:
         status, missing = "disabled", []
+    onnx_dir, quant = text_corrector.get_layout()
     return {
         "enabled": llm_correction_enabled,
         "prompt": get_system_prompt(),
         "model_path": text_corrector.get_model_dir(),
+        "onnx_dir": onnx_dir,
+        "quant": quant,
         "status": status,
         "missing_files": missing,
     }

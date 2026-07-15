@@ -33,5 +33,8 @@ onnx-asr>=0.11.0
 onnxruntime>=1.20.0      # direkt als Build-Dependency (nicht nur transitiv)
 huggingface_hub>=0.30.0  # fuer on-demand Modell-Download
 
+# LLM-Post-Processing (Phase 3B — Qwen3.5-0.8B Korrektur via plain onnxruntime)
+tokenizers>=0.21.0       # Tokenisierung des Korrektur-Modells (tokenizer.json)
+
 # Build-Tooling
 pyinstaller>=6.10.0,<7  # auf 6.x pinnen: collect_all liefert hier stabil 3 Werte
