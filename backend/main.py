@@ -67,6 +67,53 @@ text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, d
 model_load_task: Optional[asyncio.Task] = None
 
 
+# ---------------------------------------------------------------------------
+# Parent-death watchdog (Windows, frozen only)
+#
+# Hintergrund: Das Backend wird als PyInstaller-ONEFILE-Sidecar gebaut. Zur
+# Laufzeit ist whisper-backend.exe nur ein Bootloader, der einen KIND-Prozess
+# (das echte Python/uvicorn-Backend) startet. Wenn die Tauri-App quit() macht,
+# killt ihr RunEvent::Exit-Handler nur den Bootloader (die Sidecar-PID) — das
+# Kind (Port 8765) uberlebt als Waise. Diese Watchdog wartet auf das Handle des
+# Parents (Bootloader) und beendet das Backend sauber, sobald der Parent stirbt.
+# Kein Polling, kein psutil, nur ctypes + WaitForSingleObject.
+# ---------------------------------------------------------------------------
+def _start_parent_watchdog() -> None:
+    if not (getattr(sys, "frozen", False) and os.name == "nt"):
+        return  # nur im gefreezten Windows-Build relevant
+
+    import ctypes
+    import threading
+
+    SYNCHRONIZE = 0x00100000
+    INFINITE = 0xFFFFFFFF
+    k32 = ctypes.windll.kernel32
+
+    try:
+        ppid = os.getppid()
+    except (AttributeError, OSError):
+        return
+
+    parent_handle = k32.OpenProcess(SYNCHRONIZE, False, ppid)
+    if not parent_handle:
+        # Parent (Bootloader) bereits weg -> sofort beenden
+        logger.warning("⚠️ Parent process gone at startup, exiting backend")
+        os._exit(0)
+        return
+
+    def _watch_parent() -> None:
+        try:
+            k32.WaitForSingleObject(ctypes.c_void_p(parent_handle), INFINITE)
+        finally:
+            k32.CloseHandle(ctypes.c_void_p(parent_handle))
+        logger.info("🛑 Parent (bootloader) terminated — exiting backend")
+        os._exit(0)
+
+    t = threading.Thread(target=_watch_parent, daemon=True)
+    t.start()
+    logger.info(f"👁️ Parent watchdog started (watching PID {ppid})")
+
+
 # Pydantic models
 class StartRequest(BaseModel):
     model_size: str = "default"  # "default" = model/ Ordner
@@ -99,6 +146,7 @@ class HealthResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the FastAPI app"""
+    _start_parent_watchdog()
     logger.info("=" * 60)
     logger.info("🚀 PortableWhisper Backend Starting...")
     logger.info("=" * 60)
