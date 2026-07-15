@@ -20,6 +20,15 @@ backend/*.spec
 # Users will download them automatically on first run (~500MB for small model)
 backend/models/
 
+# PortableWhisper runtime dirs (flat app layout). Im Dev-Modus schreibt
+# path_redirect diese ins Repo-Root — nie eincommitten (Modelle ~650MB+,
+# temporaere Audio-Chunks, zentrale config.json).
+/model/
+/temp/
+/cache/
+/gpu_libs/
+/config.json
+
 # Recorded audio files
 backend/*.wav
 backend/recordings/

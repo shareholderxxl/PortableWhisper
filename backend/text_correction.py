@@ -13,6 +13,15 @@ Cache neu. Das ist korrekt und simpel (kein Hybrid-Cache-Management noetig),
 aber O(n^2). Inkrementeller KV-Cache ist eine spaetere Optimierung, falls
 die CPU-Inferenz zu langsam sein sollte.
 
+Status & Modell-Verzeichnis:
+  - Der Prompt (nur der inhaltliche System-Teil) ist editierbar und wird in
+    der zentralen config.json persistiert. Das technische Geruest
+    (<|im_start|>/im_end, /no_think) bleibt fix.
+  - Das Modell-Verzeichnis wird robust aufgeloest (exakt qwen3.5-0.8b-onnx/
+    oder Auto-Detect eines qwen3.5*-Ordners unter model/).
+  - Ein Status-State-Machine (missing/loading/loaded/error) steuert die
+    UI-Anzeige und das Startup-Pre-Load.
+
 Robustheit: bei JEDEM Fehler (Modell fehlt, ONNX-Op, Speicher) wird der
 Originaltext unveraendert zurueckgegeben — die Transkriptions-Pipeline
 stuerzt niemals wegen der Korrektur ab.
@@ -36,10 +45,11 @@ IM_START = 248045
 IM_END = 248046
 EOS_TOKEN_ID = 248044
 
-DEFAULT_MODEL_DIR = str(MODELS_DIR / "qwen3.5-0.8b-onnx")
 DEFAULT_QUANT = "q4"
+DEFAULT_MODEL_SUBDIR = "qwen3.5-0.8b-onnx"
+MAX_PROMPT_CHARS = 2000
 
-_SYSTEM_PROMPT = (
+DEFAULT_SYSTEM_PROMPT = (
     "Du bist ein Korrekturassistent fuer transkribierte deutsche Diktate. "
     "Korrigiere den Text: entferne Fuellwoerter und Disfluenzen (aehm, hm, ...), "
     "hebe Grammatik und Rechtschreibung, loese Selbstkorrekturen auf. Behalte "
@@ -47,40 +57,123 @@ _SYSTEM_PROMPT = (
     "korrigierten Text zurueck, ohne Erklaerung, ohne Anfuehrungszeichen."
 )
 
+# ---------------------------------------------------------------------------
+# Editierbarer System-Prompt (nur Inhalt; technisches Geruest bleibt fix)
+# ---------------------------------------------------------------------------
+system_prompt: str = DEFAULT_SYSTEM_PROMPT
+
+
+def set_system_prompt(prompt) -> str:
+    """Setzt den System-Prompt (Inhalt). Leer -> Default, Cap MAX_PROMPT_CHARS."""
+    global system_prompt
+    p = (prompt or "").strip()
+    if not p:
+        p = DEFAULT_SYSTEM_PROMPT
+    if len(p) > MAX_PROMPT_CHARS:
+        p = p[:MAX_PROMPT_CHARS]
+    system_prompt = p
+    return system_prompt
+
+
+def get_system_prompt() -> str:
+    return system_prompt
+
+
+def _resolve_model_dir() -> str:
+    """Loest das Modell-Verzeichnis auf:
+       1) model/qwen3.5-0.8b-onnx/ (mit tokenizer.json)
+       2) Auto-Detect: beliebiger qwen3.5*-Ordner unter model/ mit tokenizer.json
+       3) Default-Erwartung (wird als 'missing' gemeldet)."""
+    exact = MODELS_DIR / DEFAULT_MODEL_SUBDIR
+    if (exact / "tokenizer.json").exists():
+        return str(exact)
+    if MODELS_DIR.is_dir():
+        try:
+            for d in sorted(MODELS_DIR.iterdir()):
+                if d.is_dir() and d.name.lower().startswith("qwen3.5") \
+                        and (d / "tokenizer.json").exists():
+                    return str(d)
+        except OSError:
+            pass
+    return str(exact)  # Default-Erwartung (Status -> missing)
+
 
 class TextCorrector:
     """Lazy-loaded Qwen3.5-0.8B Korrektur-Engine (plain onnxruntime, CPU)."""
 
-    def __init__(self, model_dir: str = DEFAULT_MODEL_DIR, quant: str = DEFAULT_QUANT):
-        self.model_dir = model_dir
+    def __init__(self, model_dir=None, quant: str = DEFAULT_QUANT):
         self.quant = quant
+        self.model_dir = model_dir          # None -> dynamisch aufgeloest
         self._lock = threading.Lock()
         self._loaded = False
+        self._load_state = "missing"        # missing|loading|loaded|error
+        self._load_error = ""
         self._embed = None
         self._decoder = None
         self._tokenizer = None
-        self._dec_inputs = []          # [(name, shape, type)]
+        self._dec_inputs = []               # [(name, shape, type)]
         self._output_names = []
         self._embed_input = "input_ids"
+
+    # ---- Oeffentliche Status-API ---------------------------------------- #
 
     def is_loaded(self) -> bool:
         return self._loaded
 
+    def get_model_dir(self) -> str:
+        return self.model_dir if self.model_dir else _resolve_model_dir()
+
     def _onnx_dir(self) -> str:
-        d = Path(self.model_dir)
+        d = Path(self.get_model_dir())
         sub = d / "onnx"
         return str(sub) if sub.is_dir() else str(d)
+
+    def check_files(self):
+        """Prueft die benoetigten Modell-Dateien. -> (present, missing_list)."""
+        md = self.get_model_dir()
+        od = self._onnx_dir()
+        required = [
+            os.path.join(od, f"decoder_model_merged_{self.quant}.onnx"),
+            os.path.join(od, f"decoder_model_merged_{self.quant}.onnx_data"),
+            os.path.join(od, f"embed_tokens_{self.quant}.onnx"),
+            os.path.join(od, f"embed_tokens_{self.quant}.onnx_data"),
+            os.path.join(md, "tokenizer.json"),
+        ]
+        missing = [f for f in required if not os.path.exists(f)]
+        return (len(missing) == 0), missing
+
+    def get_status(self):
+        """-> (state, missing_files). state: missing|available|loading|loaded|error."""
+        if self._load_state == "loading":
+            return "loading", []
+        if self._loaded:
+            return "loaded", []
+        if self._load_state == "error":
+            return "error", []
+        present, missing = self.check_files()
+        return ("available" if present else "missing"), missing
+
+    # ---- Laden ---------------------------------------------------------- #
 
     def load(self) -> bool:
         """Laedt Embedding- + Decoder-Session + Tokenizer. Thread-safe, lazy."""
         with self._lock:
             if self._loaded:
                 return True
+            present, missing = self.check_files()
+            if not present:
+                self._load_state = "missing"
+                logger.warning(f"⚠️ Korrektur-Modell unvollstaendig: {missing}")
+                return False
+            self._load_state = "loading"
             try:
                 import onnxruntime as ort
                 from tokenizers import Tokenizer
             except ImportError as e:
-                logger.warning(f"⚠️ Korrektur-Dependencies fehlen ({e}) — Korrektur deaktiviert")
+                self._loaded = False
+                self._load_state = "error"
+                self._load_error = str(e)
+                logger.warning(f"⚠️ Korrektur-Dependencies fehlen ({e}) — deaktiviert")
                 return False
 
             try:
@@ -88,11 +181,7 @@ class TextCorrector:
                 onnx_dir = self._onnx_dir()
                 emb_path = os.path.join(onnx_dir, f"embed_tokens_{self.quant}.onnx")
                 dec_path = os.path.join(onnx_dir, f"decoder_model_merged_{self.quant}.onnx")
-                tok_path = os.path.join(self.model_dir, "tokenizer.json")
-
-                for p in (emb_path, dec_path, tok_path):
-                    if not os.path.exists(p):
-                        raise FileNotFoundError(p)
+                tok_path = os.path.join(self.get_model_dir(), "tokenizer.json")
 
                 so = ort.SessionOptions()
                 so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -108,18 +197,24 @@ class TextCorrector:
                 self._dec_inputs = [(i.name, i.shape, i.type) for i in self._decoder.get_inputs()]
                 self._output_names = [o.name for o in self._decoder.get_outputs()]
                 self._loaded = True
+                self._load_state = "loaded"
+                self._load_error = ""
                 logger.info(
-                    f"✅ TextCorrector geladen ({self.quant}) aus {self.model_dir} "
+                    f"✅ TextCorrector geladen ({self.quant}) aus {self.get_model_dir()} "
                     f"in {time.time() - t0:.1f}s"
                 )
                 return True
             except Exception as e:
+                self._loaded = False
+                self._load_state = "error"
+                self._load_error = str(e)
                 logger.warning(
                     f"⚠️ TextCorrector konnte nicht geladen werden: {e} — "
                     f"Korrektur deaktiviert (Fallback auf Rohtext)"
                 )
-                self._loaded = False
                 return False
+
+    # ---- Korrektur ------------------------------------------------------ #
 
     def correct(self, text: str) -> str:
         """Korrigiert `text`. Bei jedem Fehler -> Originaltext (kein Crash)."""
@@ -138,10 +233,10 @@ class TextCorrector:
     def _build_prompt(self, text: str) -> str:
         # /no_think schaltet den Reasoning-Modus von Qwen3.5 aus (schnell,
         # direkte Antwort). Als Sicherheitsnetz wird <think>...</think> spaeter
-        # entfernt.
+        # entfernt. Das technische Geruest (im_start/im_end) bleibt fix.
         user = text.strip() + " /no_think"
         return (
-            f"<|im_start|>system\n{_SYSTEM_PROMPT}<|im_end|>\n"
+            f"<|im_start|>system\n{get_system_prompt()}<|im_end|>\n"
             f"<|im_start|>user\n{user}<|im_end|>\n"
             f"<|im_start|>assistant\n"
         )
@@ -233,7 +328,7 @@ class TextCorrector:
         return text
 
 
-# Modul-Singleton (lazy, erst beim ersten correct()-Aufruf geladen)
+# Modul-Singleton (lazy, Pre-Load beim App-Start oder beim ersten correct())
 text_corrector = TextCorrector()
 
 

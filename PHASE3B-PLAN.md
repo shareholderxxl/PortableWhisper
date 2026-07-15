@@ -53,6 +53,19 @@ Latenz zu hoch ist → Schritt 5b: inkrementeller KV-Cache nachrüsten.
 Default-Modell: `model/qwen3.5-0.8b-onnx/` (q4). Toggle default = **AN**;
 Fallback liefert Rohtext, falls das Modell fehlt/schlägt fehl.
 
+### UX-Erweiterung (Status, Prompt-Editor, Pre-Load)
+- **Eigener Status** für das Korrektur-Modell (`/health`: `correction_model_status`
+  ∈ disabled/missing/available/loading/loaded/error) + Badge neben dem LLM-Toggle.
+- **Editierbarer Prompt** (nur inhaltlicher System-Teil) im Settings-Panel;
+  technisches Gerüst (`im_start/im_end`, `/no_think`) bleibt fix. Persistiert in
+  zentraler `config.json` (`correction.enabled` + `correction.system_prompt`).
+- **Startup-Pre-Load**: Backend lädt das Modell im Hintergrund beim Start
+  (wenn aktiviert + vorhanden), statt erst beim ersten `/stop`.
+- **Robuste Modellverzeichnis-Auflösung**: exakt `qwen3.5-0.8b-onnx/` oder
+  Auto-Detect eines `qwen3.5*`-Ordners unter `model/`; Pfad + fehlende Dateien
+  werden im UI angezeigt (löst das "Modell kopieren klappt nicht"-Problem).
+- **Modell-Bezug:** manuell (klarer Pfad + Status-Hinweis im UI); ZIP bleibt klein.
+
 ---
 
 ## Ziel

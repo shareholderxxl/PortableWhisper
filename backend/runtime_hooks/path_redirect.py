@@ -19,6 +19,7 @@ main.py) — siehe whisper-backend.spec.
 
 import os
 import sys
+import json
 from pathlib import Path
 
 APP_NAME = "PortableWhisper"
@@ -48,6 +49,9 @@ TEMP_DIR: Path = APP_DIR / "temp"
 LOGS_DIR: Path = APP_DIR / "logs"
 GPU_LIBS_DIR: Path = APP_DIR / "gpu_libs"
 CACHE_DIR: Path = APP_DIR / "cache"
+
+# Zentrale Konfigurationsdatei (fuer persistente Settings, z.B. Phase 3B).
+CONFIG_FILE: Path = APP_DIR / "config.json"
 
 # Verzeichnisse sicher anlegen (idempotent)
 for _d in (MODELS_DIR, DEFAULT_MODELS_DIR, TEMP_DIR, LOGS_DIR, GPU_LIBS_DIR, CACHE_DIR):
@@ -93,3 +97,28 @@ def get_temp_dir() -> Path:
 def get_logs_dir() -> Path:
     """Log-Verzeichnis."""
     return LOGS_DIR
+
+
+def load_config() -> dict:
+    """Liest die zentrale config.json. Bei Fehler/fehlend -> leeres Dict."""
+    try:
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except (OSError, ValueError) as e:
+        # Kein logging hier (path_redirect laeuft sehr frueh); stillschweigend.
+        pass
+    return {}
+
+
+def save_config(data: dict) -> None:
+    """Schreibt die zentrale config.json atomar (temp + replace)."""
+    try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = CONFIG_FILE.with_suffix(CONFIG_FILE.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data if isinstance(data, dict) else {}, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, CONFIG_FILE)
+    except OSError:
+        pass

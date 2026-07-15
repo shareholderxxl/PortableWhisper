@@ -24,14 +24,19 @@ from audio_capture import AudioCapture
 from parakeet_engine import ParakeetEngine
 import gpu_manager
 from text_cleanup import clean_text
-from text_correction import correct_text  # Phase 3B: LLM-gestuetzte Korrektur
+from text_correction import (
+    correct_text,          # Phase 3B: LLM-gestuetzte Korrektur
+    text_corrector,        # Singleton (Status, Pre-Load)
+    set_system_prompt,     # editierbarer Prompt
+    get_system_prompt,
+)
 
 # Konfiguration
 BACKEND_HOST = "127.0.0.1"  # localhost only — kein externer Zugriff
 BACKEND_PORT = 8765         # Sidecar-Port (Phase 1)
 
 import sys
-from runtime_hooks.path_redirect import get_logs_dir
+from runtime_hooks.path_redirect import get_logs_dir, load_config, save_config
 
 # Configure logging
 log_file = get_logs_dir() / "whisper-backend.log"
@@ -143,11 +148,14 @@ class HealthResponse(BaseModel):
     recording: bool = False
     version: str = "1.0.0"
     recording: bool
+    correction_model_status: str = "disabled"
+    correction_model_path: str = ""
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the FastAPI app"""
+    global llm_correction_enabled
     _start_parent_watchdog()
     logger.info("=" * 60)
     logger.info("🚀 PortableWhisper Backend Starting...")
@@ -156,6 +164,28 @@ async def lifespan(app: FastAPI):
     logger.info(f"API Docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
     logger.info(f"Health Check: http://{BACKEND_HOST}:{BACKEND_PORT}/health")
     logger.info("=" * 60)
+
+    # Phase 3B: Korrektur-Settings aus zentraler config.json laden
+    try:
+        cfg = load_config()
+        corr = cfg.get("correction", {}) if isinstance(cfg, dict) else {}
+        if "enabled" in corr:
+            llm_correction_enabled = bool(corr["enabled"])
+        set_system_prompt(corr.get("system_prompt", ""))
+        logger.info(f"✨ LLM-Korrektur: enabled={llm_correction_enabled}")
+    except Exception as e:
+        logger.warning(f"⚠️ Korrektur-Config konnte nicht geladen werden: {e}")
+
+    # Phase 3B: Pre-Load des Korrektur-Modells im Hintergrund (wenn aktiviert
+    # und vorhanden), damit die erste Transkription nicht auf den Load wartet.
+    if llm_correction_enabled:
+        present, missing = text_corrector.check_files()
+        if present:
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, text_corrector.load)
+            logger.info("📥 Korrektur-Modell wird im Hintergrund vorgeladen...")
+        else:
+            logger.info(f"ℹ️ Korrektur-Modell unvollstaendig ({missing}) — kein Pre-Load")
 
     # Check GPU libraries at startup
     logger.info("🔍 Checking GPU libraries...")
@@ -241,12 +271,20 @@ async def health_check():
         elif whisper_engine.is_model_downloaded():
             model_status = "available"
 
+    # Phase 3B: Status des Korrektur-Modells (eigener Status, neben dem ASR-Modell)
+    if not llm_correction_enabled:
+        corr_status = "disabled"
+    else:
+        corr_status, _ = text_corrector.get_status()
+
     return HealthResponse(
         status="ok",
         backend=backend,
         model=model,
         model_status=model_status,
-        recording=is_recording
+        recording=is_recording,
+        correction_model_status=corr_status,
+        correction_model_path=text_corrector.get_model_dir(),
     )
 
 
@@ -911,15 +949,61 @@ async def set_cleanup_setting(payload: dict):
 
 @app.get("/settings/correction")
 async def get_correction_setting():
-    return {"enabled": llm_correction_enabled}
+    if llm_correction_enabled:
+        status, missing = text_corrector.get_status()
+    else:
+        status, missing = "disabled", []
+    return {
+        "enabled": llm_correction_enabled,
+        "prompt": get_system_prompt(),
+        "model_path": text_corrector.get_model_dir(),
+        "status": status,
+        "missing_files": missing,
+    }
 
 
 @app.post("/settings/correction")
 async def set_correction_setting(payload: dict):
     global llm_correction_enabled
-    llm_correction_enabled = bool(payload.get("enabled", True))
+    enabled = bool(payload.get("enabled", True))
+    llm_correction_enabled = enabled
+
+    prompt = payload.get("prompt")
+    if prompt is not None:
+        set_system_prompt(str(prompt))
+
+    # In zentrale config.json persistieren (ueber App-Neustarts hinaus)
+    try:
+        cfg = load_config()
+        if not isinstance(cfg, dict):
+            cfg = {}
+        cfg.setdefault("correction", {})
+        cfg["correction"]["enabled"] = llm_correction_enabled
+        cfg["correction"]["system_prompt"] = get_system_prompt()
+        save_config(cfg)
+    except Exception as e:
+        logger.warning(f"⚠️ Korrektur-Config konnte nicht gespeichert werden: {e}")
+
     logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}")
-    return {"enabled": llm_correction_enabled}
+
+    # Wenn gerade aktiviert + Modell vorhanden + nicht geladen -> Hintergrund-Load
+    if enabled and not text_corrector.is_loaded():
+        present, _ = text_corrector.check_files()
+        if present:
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, text_corrector.load)
+            logger.info("📥 Korrektur-Modell wird im Hintergrund geladen...")
+
+    if enabled:
+        status, missing = text_corrector.get_status()
+    else:
+        status, missing = "disabled", []
+    return {
+        "enabled": llm_correction_enabled,
+        "prompt": get_system_prompt(),
+        "status": status,
+        "missing_files": missing,
+    }
 
 
 # Run the server

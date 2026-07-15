@@ -845,10 +845,23 @@
                 <div class="config-row">
                     <div class="config-row-left">
                         <div class="config-row-title">LLM-Korrektur</div>
-                        <div class="config-row-description">Grammatik &amp; Disfluenzen mit lokalem KI-Modell glätten (Qwen3.5-0.8B, benötigt Modell in <code>model/</code>)</div>
+                        <div class="config-row-description">Grammatik &amp; Disfluenzen mit lokalem KI-Modell glätten (Qwen3.5-0.8B)</div>
                     </div>
                     <div class="config-row-right">
+                        <span id="correctionStatusBadge" class="status-indicator" style="padding:4px 10px;font-size:12px;background:rgba(102,126,234,0.15);color:#667eea;">…</span>
                         <div class="toggle-switch active" id="correctionToggle" onclick="toggleLlmCorrection()"></div>
+                    </div>
+                </div>
+
+                <div class="config-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+                    <div class="config-row-left" style="flex-direction:column;align-items:stretch;gap:4px;">
+                        <div class="config-row-title">Korrektur-Prompt</div>
+                        <div class="config-row-description">Nur der inhaltliche Teil (technisches Gerüst bleibt fix). Modellordner: <code id="correctionModelPath">model/qwen3.5-0.8b-onnx/</code></div>
+                    </div>
+                    <textarea id="correctionPrompt" rows="4" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-main);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;" placeholder="System-Anweisung an das Korrektur-Modell..."></textarea>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button class="btn" style="padding:6px 16px;font-size:13px;" onclick="saveCorrectionSettings()">Speichern</button>
+                        <span id="correctionSaveHint" style="font-size:12px;color:var(--text-secondary);"></span>
                     </div>
                 </div>
 
@@ -1237,6 +1250,11 @@
                 if (typeof data.model_status !== 'undefined') {
                     updateModelStatusIndicator(data.model_status);
                 }
+
+                // Korrektur-Modell-Status (Phase 3B) aktualisieren
+                if (typeof data.correction_model_status !== 'undefined') {
+                    updateCorrectionStatusIndicator(data.correction_model_status);
+                }
             } catch (error) {
                 const statusEl = document.getElementById('backendStatus');
                 if (lastBackendStatus !== 'offline') {
@@ -1397,9 +1415,58 @@
                 } else {
                     toggle.classList.remove('active');
                 }
+                const ta = document.getElementById('correctionPrompt');
+                if (ta && typeof data.prompt === 'string') {
+                    ta.value = data.prompt;
+                }
+                const pathEl = document.getElementById('correctionModelPath');
+                if (pathEl && data.model_path) {
+                    pathEl.textContent = data.model_path;
+                }
+                updateCorrectionStatusIndicator(data.status);
             } catch (e) {
                 console.error('Could not load LLM correction setting:', e);
             }
+        }
+
+        async function saveCorrectionSettings() {
+            const toggle = document.getElementById('correctionToggle');
+            const enabled = toggle.classList.contains('active');
+            const prompt = (document.getElementById('correctionPrompt') || {}).value || '';
+            const hint = document.getElementById('correctionSaveHint');
+            try {
+                const resp = await fetch(`${BACKEND_URL}/settings/correction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, prompt })
+                });
+                const data = await resp.json();
+                updateCorrectionStatusIndicator(data.status);
+                if (hint) {
+                    hint.textContent = '✓ Gespeichert';
+                    setTimeout(() => { if (hint) hint.textContent = ''; }, 2000);
+                }
+            } catch (error) {
+                console.error('❌ Error saving LLM correction:', error);
+                if (hint) hint.textContent = '✗ Fehler';
+            }
+        }
+
+        function updateCorrectionStatusIndicator(status) {
+            const el = document.getElementById('correctionStatusBadge');
+            if (!el) return;
+            const map = {
+                loaded:    ['Geladen',  'rgba(52,211,153,0.15)',  '#34d399'],
+                loading:   ['Lädt...',  'rgba(251,191,36,0.15)',   '#fbbf24'],
+                available: ['Bereit',   'rgba(102,126,234,0.15)',  '#667eea'],
+                missing:   ['Fehlt',    'rgba(239,68,68,0.15)',    '#ef4444'],
+                error:     ['Fehler',   'rgba(239,68,68,0.15)',    '#ef4444'],
+                disabled:  ['Aus',      'rgba(160,160,160,0.15)',  '#a0a0a0'],
+            };
+            const [text, bg, color] = map[status] || ['…', 'rgba(102,126,234,0.15)', '#667eea'];
+            el.textContent = text;
+            el.style.background = bg;
+            el.style.color = color;
         }
 
         async function toggleLaunchOnStartup() {
