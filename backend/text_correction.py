@@ -1,17 +1,26 @@
 """
-LLM Text Correction (Phase 3B).
+LLM Text Correction (Phase 3B + 3C).
 
 Post-Processing des transkribierten Textes mit einem lokalen Qwen3.5-0.8B-
 Modell (ONNX, q4) via *plain* onnxruntime — ohne onnxruntime-genai, ohne
 genai-Format, ohne torch. Das optimum-q4-Export laeuft direkt auf der
 onnxruntime CPU, die ohnehin schon (fuer Parakeet) installiert ist.
 
-Architektur: Qwen3.5 ist ein GatedDeltaNet-Hybrid-Modell (lineare Attention
-+ volle Attention). Wir nutzen **Full-Recompute-Greedy-Decode**: jeder
-Token-Schritt verarbeitet die komplette (wachsende) Sequenz mit geleertem
-Cache neu. Das ist korrekt und simpel (kein Hybrid-Cache-Management noetig),
-aber O(n^2). Inkrementeller KV-Cache ist eine spaetere Optimierung, falls
-die CPU-Inferenz zu langsam sein sollte.
+Architektur: Qwen3.5 ist ein GatedDeltaNet-Hybrid-Modell (18 lineare
+Attention-Layer + 6 volle Attention-Layer). Zwei Decode-Strategien:
+
+  1. **KV-Cache (Standard)** — _generate_kvcache(): Prefill mit vollem
+     Prompt, danach Decode mit nur 1 Token + zwischengespeicherten Caches.
+     Drei Cache-Typen: past_conv (fix), past_recurrent (fix),
+     past_key_values (wachsend). Das Modell akkumuliert selbst; wir reichen
+     present_* als past_* weiter. O(n) pro Schritt statt O(n^2).
+
+  2. **Full-Recompute (Fallback)** — _generate(): jeder Token-Schritt
+     verarbeitet die komplette (wachsende) Sequenz mit geleertem Cache neu.
+     O(n^2), aber einfacher und als Notfall-Fallback wichtig.
+
+Execution Provider: DirectML (GPU) falls verfuegbar (onnxruntime-directml),
+sonst CPU. Die Auswahl passiert automatisch in _select_providers().
 
 Status & Modell-Verzeichnis:
   - Der Prompt (nur der inhaltliche System-Teil) ist editierbar und wird in
@@ -99,7 +108,7 @@ def _resolve_model_dir() -> str:
 
 
 class TextCorrector:
-    """Lazy-loaded Qwen3.5-0.8B Korrektur-Engine (plain onnxruntime, CPU)."""
+    """Lazy-loaded Qwen3.5-0.8B Korrektur-Engine (onnxruntime, KV-Cache + DirectML)."""
 
     def __init__(self, model_dir=None, quant: str = DEFAULT_QUANT):
         self.quant = quant
@@ -173,6 +182,23 @@ class TextCorrector:
 
     # ---- Laden ---------------------------------------------------------- #
 
+    @staticmethod
+    def _select_providers():
+        """Waehlt den besten Execution Provider: DirectML (GPU) > CPU.
+        onnxruntime-directml stellt DmlExecutionProvider zur Verfuegung;
+        device_id=0 = GPU (Radeon 860M), device_id=1 = NPU (XDNA 2, evtl.).
+        Falls DirectML nicht verfuegbar (Linux/Dev) -> CPU."""
+        try:
+            import onnxruntime as ort
+            available = ort.get_available_providers()
+        except Exception:
+            return ["CPUExecutionProvider"]
+        if "DmlExecutionProvider" in available:
+            logger.info("🖥️ DirectML verfuegbar — nutze GPU (device_id=0)")
+            return [("DmlExecutionProvider", {"device_id": 0}), "CPUExecutionProvider"]
+        logger.info("💻 DirectML nicht verfuegbar — CPU-Modus")
+        return ["CPUExecutionProvider"]
+
     def load(self) -> bool:
         """Laedt Embedding- + Decoder-Session + Tokenizer. Thread-safe, lazy."""
         with self._lock:
@@ -204,12 +230,15 @@ class TextCorrector:
                 so = ort.SessionOptions()
                 so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
                 try:
-                    so.intra_op_num_threads = max(1, (os.cpu_count() or 2) // 2)
+                    so.intra_op_num_threads = max(1, os.cpu_count() or 4)
+                    so.inter_op_num_threads = 2
+                    so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                 except Exception:
                     pass
 
+                providers = self._select_providers()
                 self._embed = ort.InferenceSession(emb_path, so, providers=["CPUExecutionProvider"])
-                self._decoder = ort.InferenceSession(dec_path, so, providers=["CPUExecutionProvider"])
+                self._decoder = ort.InferenceSession(dec_path, so, providers=providers)
                 self._tokenizer = Tokenizer.from_file(tok_path)
                 self._embed_input = self._embed.get_inputs()[0].name
                 self._dec_inputs = [(i.name, i.shape, i.type) for i in self._decoder.get_inputs()]
@@ -218,9 +247,10 @@ class TextCorrector:
                 self._loaded = True
                 self._load_state = "loaded"
                 self._load_error = ""
+                actual_ep = self._decoder.get_providers()
                 logger.info(
-                    f"✅ TextCorrector geladen ({q}) aus {self.get_model_dir()} "
-                    f"in {time.time() - t0:.1f}s"
+                    f"✅ TextCorrector geladen ({q}, EP={actual_ep}) aus "
+                    f"{self.get_model_dir()} in {time.time() - t0:.1f}s"
                 )
                 return True
             except Exception as e:
@@ -236,16 +266,21 @@ class TextCorrector:
     # ---- Korrektur ------------------------------------------------------ #
 
     def correct(self, text: str) -> str:
-        """Korrigiert `text`. Bei jedem Fehler -> Originaltext (kein Crash)."""
+        """Korrigiert `text`. KV-Cache zuerst; bei Fehler Full-Recompute-Fallback.
+        Bei JEDEM Fehler -> Originaltext (kein Crash)."""
         if not text or not text.strip():
             return text
         if not self._loaded and not self.load():
             return text
         try:
-            return self._generate(text)
+            return self._generate_kvcache(text)
         except Exception as e:
-            logger.warning(f"⚠️ Textkorrektur fehlgeschlagen: {e} — liefere Rohtext")
-            return text
+            logger.warning(f"⚠️ KV-Cache-Korrektur fehlgeschlagen ({e}) — Full-Recompute-Fallback")
+            try:
+                return self._generate(text)
+            except Exception as e2:
+                logger.warning(f"⚠️ Textkorrektur fehlgeschlagen: {e2} — liefere Rohtext")
+                return text
 
     # ------------------------------------------------------------------ #
 
@@ -260,21 +295,146 @@ class TextCorrector:
             f"<|im_start|>assistant\n"
         )
 
-    def _generate(self, text: str) -> str:
+    # ---- KV-Cache Decode (Standard, schnell) --------------------------- #
+
+    @staticmethod
+    def _present_to_past(out_name: str) -> str | None:
+        """Mappt present_* Output-Name auf past_* Input-Name fuer den naechsten
+        Decode-Schritt. Returns None fuer 'logits' (kein Cache)."""
+        if out_name == "logits":
+            return None
+        if out_name.startswith("present_conv."):
+            return out_name.replace("present_conv.", "past_conv.", 1)
+        if out_name.startswith("present_recurrent."):
+            return out_name.replace("present_recurrent.", "past_recurrent.", 1)
+        if out_name.startswith("present."):
+            parts = out_name.split(".")
+            return f"past_key_values.{parts[1]}.{parts[2]}"
+        return None
+
+    def _zero_cache_inputs(self) -> dict:
+        """Erzeugt geleferte Cache-Tensoren fuer den Prefill-Pass
+        (past_sequence_length=0 fuer KV-Cache-Layer)."""
+        cache = {}
+        for name, shape, typ in self._dec_inputs:
+            if name in ("inputs_embeds", "attention_mask", "position_ids"):
+                continue
+            dims = []
+            for d in shape:
+                if isinstance(d, int):
+                    dims.append(d)
+                elif d == "batch_size":
+                    dims.append(1)
+                elif d == "past_sequence_length":
+                    dims.append(0)
+                else:
+                    dims.append(1)
+            is_float = "float" in (typ or "")
+            cache[name] = np.zeros(dims, dtype=np.float32 if is_float else np.int64)
+        return cache
+
+    def _generate_kvcache(self, text: str) -> str:
+        """KV-Cache inkrementelles Decoding: Prefill einmal, dann 1 Token/Schritt.
+        Drei Cache-Typen werden automatisch weitergereicht:
+          - past_conv.{i} <-> present_conv.{i}         (fixe Groesse)
+          - past_recurrent.{i} <-> present_recurrent.{i} (fixe Groesse)
+          - past_key_values.{i} <-> present.{i}         (wachst, Modell akkumuliert)
+        """
         prompt_ids = self._tokenizer.encode(self._build_prompt(text)).ids
         if not prompt_ids:
             return text
 
-        # Embeddings des Prompts einmal berechnen; pro Schritt nur das neue
-        # Token anhaengen (Embedding ist billig vs. Decoder, aber trotzdem
-        # vermeiden wir O(n^2) im Embedding-Schritt).
+        prompt_embeds = self._embed.run(
+            None, {self._embed_input: np.array([prompt_ids], dtype=np.int64)}
+        )[0].astype(np.float32)
+        N = len(prompt_ids)
+        cap = min(256, max(64, int(N * 1.5)))
+        generated: list[int] = []
+        t0 = time.time()
+
+        # --- PREFILL: voller Prompt, geleerte Caches ---
+        feed = {
+            "inputs_embeds": prompt_embeds,
+            "attention_mask": np.ones((1, N), dtype=np.int64),
+            "position_ids": np.broadcast_to(
+                np.arange(N, dtype=np.int64), (3, 1, N)
+            ).copy(),
+        }
+        feed.update(self._zero_cache_inputs())
+
+        outs = self._decoder.run(None, feed)
+        logits = outs[self._output_names.index("logits")]
+        nxt = int(np.argmax(logits[0, -1]))
+
+        # Cache aus Outputs extrahieren (present_* -> past_*)
+        cache = {}
+        for name, val in zip(self._output_names, outs):
+            past = self._present_to_past(name)
+            if past:
+                cache[past] = val
+
+        if nxt in (EOS_TOKEN_ID, IM_END):
+            return self._finalize(text, generated, t0)
+        generated.append(nxt)
+
+        # --- DECODE-LOOP: 1 Token + zwischengespeicherte Caches ---
+        total_len = N
+        for _ in range(cap - 1):
+            total_len += 1
+            new_emb = self._embed.run(
+                None, {self._embed_input: np.array([[nxt]], dtype=np.int64)}
+            )[0].astype(np.float32)
+
+            feed = {
+                "inputs_embeds": new_emb,
+                "attention_mask": np.ones((1, total_len), dtype=np.int64),
+                "position_ids": np.full((3, 1, 1), total_len - 1, dtype=np.int64),
+            }
+            feed.update(cache)
+
+            outs = self._decoder.run(None, feed)
+            logits = outs[self._output_names.index("logits")]
+            nxt = int(np.argmax(logits[0, 0]))
+
+            for name, val in zip(self._output_names, outs):
+                past = self._present_to_past(name)
+                if past:
+                    cache[past] = val
+
+            if nxt in (EOS_TOKEN_ID, IM_END):
+                break
+            generated.append(nxt)
+
+        return self._finalize(text, generated, t0)
+
+    def _finalize(self, text: str, generated: list[int], t0: float) -> str:
+        """Decode + Log (shared von _generate_kvcache und _generate)."""
+        out = self._tokenizer.decode(generated) if generated else ""
+        out = self._strip_thinking(out).strip()
+        elapsed = time.time() - t0
+        if not out:
+            logger.info(f"✨ Korrektur leer ({elapsed:.1f}s) — behalte Rohtext")
+            return text
+        logger.info(
+            f"✨ Korrektur ({len(generated)} tok, {elapsed:.1f}s): "
+            f"'{text.strip()[:60]}' -> '{out[:60]}'"
+        )
+        return out
+
+    # ---- Full-Recompute Decode (Fallback) ------------------------------ #
+
+    def _generate(self, text: str) -> str:
+        """Full-Recompute-Fallback: jeder Schritt verarbeitet die komplette
+        Sequenz neu (O(n^2)). Wird nur genutzt, falls _generate_kvcache() fails."""
+        prompt_ids = self._tokenizer.encode(self._build_prompt(text)).ids
+        if not prompt_ids:
+            return text
+
         prompt_embeds = self._embed.run(
             None, {self._embed_input: np.array([prompt_ids], dtype=np.int64)}
         )[0].astype(np.float32)
         embeds = prompt_embeds
 
-        # Token-Budget: Korrektur ≈ Eingabelaenge, mit Sicherheitsaufschlag,
-        # gedeckelt (Full-Recompute wird ab ~300 Tokens spuerbar langsam).
         cap = min(384, max(128, int(len(prompt_ids) * 1.6)))
         generated: list[int] = []
         t0 = time.time()
@@ -294,19 +454,7 @@ class TextCorrector:
             )[0].astype(np.float32)
             embeds = np.concatenate([embeds, new_emb], axis=1)
 
-        out = self._tokenizer.decode(generated) if generated else ""
-        out = self._strip_thinking(out).strip()
-        elapsed = time.time() - t0
-
-        if not out:
-            logger.info(f"✨ Korrektur leer ({elapsed:.1f}s) — behalte Rohtext")
-            return text
-
-        logger.info(
-            f"✨ Korrektur ({len(generated)} tok, {elapsed:.1f}s): "
-            f"'{text.strip()[:60]}' -> '{out[:60]}'"
-        )
-        return out
+        return self._finalize(text, generated, t0)
 
     def _build_feed(self, embeds: np.ndarray, seq_len: int) -> dict:
         """Decoder-Input-Dict: Embeddings + 3D-mRoPE-Positionen + geleerter Cache."""
