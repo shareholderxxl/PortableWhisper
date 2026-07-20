@@ -29,6 +29,8 @@ from text_correction import (
     text_corrector,        # Singleton (Status, Pre-Load)
     set_system_prompt,     # editierbarer Prompt
     get_system_prompt,
+    set_use_directml,      # DirectML-Toggle (GPU an/aus)
+    get_use_directml,
 )
 
 # Konfiguration
@@ -172,7 +174,9 @@ async def lifespan(app: FastAPI):
         if "enabled" in corr:
             llm_correction_enabled = bool(corr["enabled"])
         set_system_prompt(corr.get("system_prompt", ""))
-        logger.info(f"✨ LLM-Korrektur: enabled={llm_correction_enabled}")
+        set_use_directml(corr.get("use_directml", True))
+        logger.info(f"✨ LLM-Korrektur: enabled={llm_correction_enabled}, "
+                    f"DirectML={get_use_directml()}")
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht geladen werden: {e}")
 
@@ -957,6 +961,7 @@ async def get_correction_setting():
     return {
         "enabled": llm_correction_enabled,
         "prompt": get_system_prompt(),
+        "use_directml": get_use_directml(),
         "model_path": text_corrector.get_model_dir(),
         "onnx_dir": onnx_dir,
         "quant": quant,
@@ -975,6 +980,14 @@ async def set_correction_setting(payload: dict):
     if prompt is not None:
         set_system_prompt(str(prompt))
 
+    # DirectML-Toggle (erfordert Modell-Reload bei Aenderung)
+    dml_changed = False
+    if "use_directml" in payload:
+        new_dml = bool(payload["use_directml"])
+        if new_dml != get_use_directml():
+            set_use_directml(new_dml)
+            dml_changed = True
+
     # In zentrale config.json persistieren (ueber App-Neustarts hinaus)
     try:
         cfg = load_config()
@@ -983,11 +996,18 @@ async def set_correction_setting(payload: dict):
         cfg.setdefault("correction", {})
         cfg["correction"]["enabled"] = llm_correction_enabled
         cfg["correction"]["system_prompt"] = get_system_prompt()
+        cfg["correction"]["use_directml"] = get_use_directml()
         save_config(cfg)
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht gespeichert werden: {e}")
 
-    logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}")
+    logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}, "
+                f"DirectML={get_use_directml()}")
+
+    # DirectML-Aenderung erfordert Reload (neuer EP beim Session-Aufbau)
+    if dml_changed and text_corrector.is_loaded():
+        text_corrector._loaded = False
+        text_corrector._load_state = "missing"
 
     # Wenn gerade aktiviert + Modell vorhanden + nicht geladen -> Hintergrund-Load
     if enabled and not text_corrector.is_loaded():
@@ -1004,6 +1024,7 @@ async def set_correction_setting(payload: dict):
     return {
         "enabled": llm_correction_enabled,
         "prompt": get_system_prompt(),
+        "use_directml": get_use_directml(),
         "status": status,
         "missing_files": missing,
     }

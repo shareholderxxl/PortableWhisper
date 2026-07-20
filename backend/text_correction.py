@@ -88,6 +88,22 @@ def get_system_prompt() -> str:
     return system_prompt
 
 
+# ---------------------------------------------------------------------------
+# DirectML-Toggle (GPU an/aus; fuer Diagnose per config.json steuerbar)
+# ---------------------------------------------------------------------------
+use_directml: bool = True
+
+
+def set_use_directml(value: bool) -> bool:
+    global use_directml
+    use_directml = bool(value)
+    return use_directml
+
+
+def get_use_directml() -> bool:
+    return use_directml
+
+
 def _resolve_model_dir() -> str:
     """Loest das Modell-Verzeichnis auf:
        1) model/qwen3.5-0.8b-onnx/ (mit tokenizer.json)
@@ -123,6 +139,7 @@ class TextCorrector:
         self._dec_inputs = []               # [(name, shape, type)]
         self._output_names = []
         self._embed_input = "input_ids"
+        self._kvcache_was_empty = False
 
     # ---- Oeffentliche Status-API ---------------------------------------- #
 
@@ -182,12 +199,12 @@ class TextCorrector:
 
     # ---- Laden ---------------------------------------------------------- #
 
-    @staticmethod
-    def _select_providers():
+    def _select_providers(self):
         """Waehlt den besten Execution Provider: DirectML (GPU) > CPU.
-        onnxruntime-directml stellt DmlExecutionProvider zur Verfuegung;
-        device_id=0 = GPU (Radeon 860M), device_id=1 = NPU (XDNA 2, evtl.).
-        Falls DirectML nicht verfuegbar (Linux/Dev) -> CPU."""
+        Kann per use_directml-Flag deaktiviert werden (Diagnose)."""
+        if not use_directml:
+            logger.info("💻 DirectML deaktiviert (config) — CPU-Modus")
+            return ["CPUExecutionProvider"]
         try:
             import onnxruntime as ort
             available = ort.get_available_providers()
@@ -266,21 +283,25 @@ class TextCorrector:
     # ---- Korrektur ------------------------------------------------------ #
 
     def correct(self, text: str) -> str:
-        """Korrigiert `text`. KV-Cache zuerst; bei Fehler Full-Recompute-Fallback.
-        Bei JEDEM Fehler -> Originaltext (kein Crash)."""
+        """Korrigiert `text`. KV-Cache zuerst; bei Fehler oder leerem Output
+        -> Full-Recompute-Fallback. Bei JEDEM Fehler -> Originaltext."""
         if not text or not text.strip():
             return text
         if not self._loaded and not self.load():
             return text
+        self._kvcache_was_empty = False
         try:
-            return self._generate_kvcache(text)
+            result = self._generate_kvcache(text)
+            if not self._kvcache_was_empty:
+                return result
+            logger.info("🔄 KV-Cache lieferte leer — Full-Recompute-Fallback")
         except Exception as e:
             logger.warning(f"⚠️ KV-Cache-Korrektur fehlgeschlagen ({e}) — Full-Recompute-Fallback")
-            try:
-                return self._generate(text)
-            except Exception as e2:
-                logger.warning(f"⚠️ Textkorrektur fehlgeschlagen: {e2} — liefere Rohtext")
-                return text
+        try:
+            return self._generate(text)
+        except Exception as e2:
+            logger.warning(f"⚠️ Textkorrektur fehlgeschlagen: {e2} — liefere Rohtext")
+            return text
 
     # ------------------------------------------------------------------ #
 
@@ -350,6 +371,7 @@ class TextCorrector:
         N = len(prompt_ids)
         cap = min(256, max(64, int(N * 1.5)))
         generated: list[int] = []
+        eos_hit = False
         t0 = time.time()
 
         # --- PREFILL: voller Prompt, geleerte Caches ---
@@ -363,6 +385,7 @@ class TextCorrector:
         feed.update(self._zero_cache_inputs())
 
         outs = self._decoder.run(None, feed)
+        prefill_dt = time.time() - t0
         logits = outs[self._output_names.index("logits")]
         nxt = int(np.argmax(logits[0, -1]))
 
@@ -374,10 +397,13 @@ class TextCorrector:
                 cache[past] = val
 
         if nxt in (EOS_TOKEN_ID, IM_END):
-            return self._finalize(text, generated, t0)
+            eos_hit = True
+            logger.info(f"⏱️ KV-Cache prefill: {N} tok in {prefill_dt:.2f}s (sofort EOS)")
+            return self._finalize(text, generated, t0, "KV-Cache", eos_hit)
         generated.append(nxt)
 
         # --- DECODE-LOOP: 1 Token + zwischengespeicherte Caches ---
+        decode_t0 = time.time()
         total_len = N
         for _ in range(cap - 1):
             total_len += 1
@@ -402,21 +428,35 @@ class TextCorrector:
                     cache[past] = val
 
             if nxt in (EOS_TOKEN_ID, IM_END):
+                eos_hit = True
                 break
             generated.append(nxt)
 
-        return self._finalize(text, generated, t0)
+        decode_dt = time.time() - decode_t0
+        logger.info(
+            f"⏱️ KV-Cache: prefill {N} tok in {prefill_dt:.2f}s, "
+            f"decode {len(generated)} tok in {decode_dt:.2f}s "
+            f"({len(generated)/max(decode_dt,0.001):.1f} tok/s, EOS={eos_hit})"
+        )
+        return self._finalize(text, generated, t0, "KV-Cache", eos_hit)
 
-    def _finalize(self, text: str, generated: list[int], t0: float) -> str:
+    def _finalize(self, text: str, generated: list[int], t0: float,
+                  method: str = "", eos_hit: bool = False) -> str:
         """Decode + Log (shared von _generate_kvcache und _generate)."""
-        out = self._tokenizer.decode(generated) if generated else ""
-        out = self._strip_thinking(out).strip()
+        raw = self._tokenizer.decode(generated) if generated else ""
+        out = self._strip_thinking(raw).strip()
         elapsed = time.time() - t0
         if not out:
-            logger.info(f"✨ Korrektur leer ({elapsed:.1f}s) — behalte Rohtext")
+            logger.info(
+                f"✨ {method} leer ({elapsed:.1f}s, {len(generated)} tok, EOS={eos_hit})"
+            )
+            if method == "KV-Cache":
+                logger.info(f"   Raw output: {raw[:150]!r}")
+                logger.info(f"   First tokens: {generated[:15]}")
+                self._kvcache_was_empty = True
             return text
         logger.info(
-            f"✨ Korrektur ({len(generated)} tok, {elapsed:.1f}s): "
+            f"✨ {method} ({len(generated)} tok, {elapsed:.1f}s): "
             f"'{text.strip()[:60]}' -> '{out[:60]}'"
         )
         return out
@@ -425,7 +465,8 @@ class TextCorrector:
 
     def _generate(self, text: str) -> str:
         """Full-Recompute-Fallback: jeder Schritt verarbeitet die komplette
-        Sequenz neu (O(n^2)). Wird nur genutzt, falls _generate_kvcache() fails."""
+        Sequenz neu (O(n^2)). Wird nur genutzt, falls _generate_kvcache()
+        fehlschlaegt oder leer liefert."""
         prompt_ids = self._tokenizer.encode(self._build_prompt(text)).ids
         if not prompt_ids:
             return text
@@ -437,6 +478,7 @@ class TextCorrector:
 
         cap = min(384, max(128, int(len(prompt_ids) * 1.6)))
         generated: list[int] = []
+        eos_hit = False
         t0 = time.time()
 
         for _ in range(cap):
@@ -446,6 +488,7 @@ class TextCorrector:
             nxt = int(np.argmax(logits[0, -1]))
 
             if nxt in (EOS_TOKEN_ID, IM_END):
+                eos_hit = True
                 break
             generated.append(nxt)
 
@@ -454,7 +497,7 @@ class TextCorrector:
             )[0].astype(np.float32)
             embeds = np.concatenate([embeds, new_emb], axis=1)
 
-        return self._finalize(text, generated, t0)
+        return self._finalize(text, generated, t0, "Full-Recompute", eos_hit)
 
     def _build_feed(self, embeds: np.ndarray, seq_len: int) -> dict:
         """Decoder-Input-Dict: Embeddings + 3D-mRoPE-Positionen + geleerter Cache."""
