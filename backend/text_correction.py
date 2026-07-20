@@ -91,7 +91,7 @@ def get_system_prompt() -> str:
 # ---------------------------------------------------------------------------
 # DirectML-Toggle (GPU an/aus; fuer Diagnose per config.json steuerbar)
 # ---------------------------------------------------------------------------
-use_directml: bool = True
+use_directml: bool = False     # DirectML default=off: erzeugt <think>-Bug bei Q4-Hybrid
 
 
 def set_use_directml(value: bool) -> bool:
