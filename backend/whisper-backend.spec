@@ -28,6 +28,13 @@ ort_datas, ort_bins, ort_hidden = _gather('onnxruntime')
 # Phase 3B: tokenizers (Rust-Backend + Daten) fuer das Korrektur-Modell
 tok_datas, tok_bins, tok_hidden = _gather('tokenizers')
 
+# DirectML.dll aus binaries in datas verschieben: PyInstaller's
+# Binary-Abhaengigkeits-Analyse haengt an DirectML.dll (viele DX12-Imports).
+# Als Data-File wird es eingebuendelt, aber nicht analysiert.
+_dml_moved = [(s, d) for s, d in ort_bins if 'DirectML' in os.path.basename(s)]
+ort_bins = [(s, d) for s, d in ort_bins if 'DirectML' not in os.path.basename(s)]
+ort_datas += _dml_moved
+
 a = Analysis(
     ['main.py'],
     pathex=[str(backend_dir)],
