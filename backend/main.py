@@ -70,7 +70,7 @@ is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
-llm_correction_enabled = True  # Phase 3B: LLM-gestuetzte Korrektur (Qwen3.5-0.8B, lazy, Fallback auf Rohtext)
+llm_correction_enabled = True  # Phase 3C: LLM-gestuetzte Korrektur (Qwen3-1.7B, lazy, Fallback auf Rohtext)
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -967,6 +967,8 @@ async def get_correction_setting():
         "quant": quant,
         "status": status,
         "missing_files": missing,
+        "active_provider": text_corrector.get_active_provider(),       # NEU (UI-Diagnose)
+        "prefix_cache_active": text_corrector.is_prefix_cache_active(), # NEU (UI-Diagnose)
     }
 
 
@@ -1027,6 +1029,8 @@ async def set_correction_setting(payload: dict):
         "use_directml": get_use_directml(),
         "status": status,
         "missing_files": missing,
+        "active_provider": text_corrector.get_active_provider(),       # NEU (UI-Diagnose)
+        "prefix_cache_active": text_corrector.is_prefix_cache_active(), # NEU (UI-Diagnose)
     }
 
 

@@ -30,10 +30,10 @@ pyaudio>=0.2.14  # Alternative fuer Windows WASAPI
 
 # Speech-to-Text (Phase 2 — Parakeet TDT v3 via onnx-asr, OHNE torch)
 onnx-asr>=0.11.0
-onnxruntime>=1.20.0      # CPU-EP (DirectML erzeugt <think>-Bug bei Q4-Hybrid-Modellen)
+onnxruntime-directml>=1.20.0  # CPU + DirectML (GPU-Support für AMD/Intel/NVIDIA). Qwen3 Standard-Transformer ist DirectML-kompatibel.
 huggingface_hub>=0.30.0  # fuer on-demand Modell-Download
 
-# LLM-Post-Processing (Phase 3B — Qwen3.5-0.8B Korrektur via plain onnxruntime)
+# LLM-Post-Processing (Phase 3C — Qwen3-1.7B Korrektur via plain onnxruntime)
 tokenizers>=0.21.0       # Tokenisierung des Korrektur-Modells (tokenizer.json)
 
 # Build-Tooling
