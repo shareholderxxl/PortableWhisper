@@ -68,7 +68,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-portable.txt
 
-      # Pre-flight: stellt sicher, dass die schweren ML-Imports außerhalb von
+      # Pre-flight: stellt sicher, dass die schweren ML-Imports ausserhalb von
       # PyInstaller sauber laden (und nicht bereits hier haengen).
       # Phase 3D: tokenizers entfallen (LLM-Korrektur via Lemonade, nicht mehr onnxruntime-basiert)
       - name: Pre-flight import check
@@ -102,36 +102,36 @@ jobs:
       # ============================================================
       # 2b. Lemonade-Binary (Phase 3D: NPU-LLM-Korrektur via Gemma 4)
       #     Download von lemonade-sdk/lemonade GitHub Releases.
-      #     TODO: Exakte Asset-Struktur klären (Installer-EXE entpacken oder
+      #     TODO: Exakte Asset-Struktur klaeren (Installer-EXE entpacken oder
       #     direkte lemond.exe-Distribution). Aktuell: Placeholder-Schritt,
-      #     der graceful überspringt, falls LEMONADE_RELEASE_URL nicht gesetzt ist.
+      #     der graceful ueberspringt, falls LEMONADE_RELEASE_URL nicht gesetzt ist.
+      #     WICHTIG: Nur ASCII-Zeichen im PowerShell-Skript (keine Umlaute/Emojis),
+      #     da der Windows Runner die .ps1 nicht als UTF-8 encodiert.
       # ============================================================
       - name: Download Lemonade binary (lemond)
         run: |
           $url = $env:LEMONADE_RELEASE_URL
           if (-not $url) {
-            Write-Host "⚠️ LEMONADE_RELEASE_URL nicht gesetzt — überspringe Lemonade-Download."
-            Write-Host "   Die App läuft ohne LLM-Korrektur (NPU-Feature deaktiviert bis Binary verfügbar)."
-            # Platzhalter-Datei, damit Tauri-Build nicht wegen fehlendem externalBin fehlschlägt
+            Write-Host "[WARN] LEMONADE_RELEASE_URL not set - skipping Lemonade download."
+            Write-Host "   App will run without LLM correction (NPU feature disabled until binary available)."
             New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
             $placeholder = "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
             if (-not (Test-Path $placeholder)) {
               Set-Content -Path $placeholder -Value "# placeholder until Lemonade binary is available"
             }
-            Write-Host "Placeholder erstellt: $placeholder"
+            Write-Host "Placeholder created: $placeholder"
             return
           }
           Write-Host "Downloading Lemonade from: $url"
           $zip = "${{ runner.temp }}/lemonade.zip"
           Invoke-WebRequest -Uri $url -OutFile $zip
-          # TODO: Entpacken und lemond.exe extrahieren, sobald Asset-Struktur bekannt
           Expand-Archive -Path $zip -DestinationPath "${{ runner.temp }}/lemonade" -Force
           $lemond = Get-ChildItem -Recurse "${{ runner.temp }}/lemonade" -Filter "lemond.exe" | Select-Object -First 1
           if ($lemond) {
             Copy-Item $lemond.FullName "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe" -Force
-            Write-Host "Lemonade gestaged: frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
+            Write-Host "Lemonade staged: frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
           } else {
-            throw "lemond.exe nicht im Lemonade-Release gefunden"
+            throw "lemond.exe not found in Lemonade release"
           }
         env:
           LEMONADE_RELEASE_URL: ${{ secrets.LEMONADE_RELEASE_URL }}
@@ -214,7 +214,7 @@ jobs:
             Copy-Item $lemondSrc "$stage/binaries/lemond.exe"
             Write-Host "Lemonade in ZIP aufgenommen"
           } else {
-            Write-Host "⚠️ Lemonade-Binary ist Placeholder oder fehlt — nicht im ZIP enthalten"
+            Write-Host "[WARN] Lemonade binary is placeholder or missing - not included in ZIP"
           }
 
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
@@ -222,7 +222,7 @@ jobs:
           Copy-Item LICENSES.md $stage/ -ErrorAction SilentlyContinue
 
           # Platzhalter-README im Modellordner, damit User weiss,
-          # wohin die ONNX-Modell-Dateien gehören.
+          # wohin die ONNX-Modell-Dateien gehoeren.
           Set-Content -Path "$stage/model/README.txt" -Value @"
           PortableWhisper - Modell-Ordner
           ==============================
