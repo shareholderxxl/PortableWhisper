@@ -33,6 +33,8 @@ pub struct Settings {
     pub toggle_shortcut: String,
     pub cancel_shortcut: String,
     pub recording_mode: String,
+    pub lemonade_enabled: bool,       // Phase 3D: LLM-Korrektur via Lemonade/NPU
+    pub lemonade_model: String,       // Phase 3D: "gemma4-it:e2b" | "gemma4-it:e4b"
 }
 
 impl Default for Settings {
@@ -46,6 +48,8 @@ impl Default for Settings {
             toggle_shortcut: "F9".to_string(),
             cancel_shortcut: "Escape".to_string(),
             recording_mode: "toggle".to_string(),
+            lemonade_enabled: true,
+            lemonade_model: "gemma4-it:e2b".to_string(),
         }
     }
 }
@@ -61,9 +65,12 @@ pub struct AppState {
     pub toggle_shortcut: Arc<Mutex<String>>,  // Toggle recording shortcut
     pub cancel_shortcut: Arc<Mutex<String>>,  // Cancel recording shortcut
     pub backend_child: Arc<Mutex<Option<tauri_plugin_shell::process::CommandChild>>>,  // Backend process handle
+    pub lemonade_child: Arc<Mutex<Option<tauri_plugin_shell::process::CommandChild>>>,  // Lemonade process handle (Phase 3D)
     pub is_processing: Arc<Mutex<bool>>,  // Track if we are transcribing
     pub recording_mode: Arc<Mutex<String>>,  // Toggle vs Push-to-Talk
     pub settings_path: PathBuf,  // Path to settings file
+    pub lemonade_enabled: Arc<Mutex<bool>>,  // Phase 3D: Lemonade/NPU LLM correction on/off
+    pub lemonade_model: Arc<Mutex<String>>,  // Phase 3D: Active Gemma 4 model id
 }
 
 impl AppState {
@@ -77,9 +84,12 @@ impl AppState {
             toggle_shortcut: Arc::new(Mutex::new("F9".to_string())),
             cancel_shortcut: Arc::new(Mutex::new("Escape".to_string())),
             backend_child: Arc::new(Mutex::new(None)),
+            lemonade_child: Arc::new(Mutex::new(None)),
             is_processing: Arc::new(Mutex::new(false)),
             recording_mode: Arc::new(Mutex::new("toggle".to_string())),
             settings_path,
+            lemonade_enabled: Arc::new(Mutex::new(true)),
+            lemonade_model: Arc::new(Mutex::new("gemma4-it:e2b".to_string())),
         }
     }
 
@@ -114,6 +124,8 @@ impl AppState {
             toggle_shortcut: self.toggle_shortcut.lock().await.clone(),
             cancel_shortcut: self.cancel_shortcut.lock().await.clone(),
             recording_mode: self.recording_mode.lock().await.clone(),
+            lemonade_enabled: *self.lemonade_enabled.lock().await,
+            lemonade_model: self.lemonade_model.lock().await.clone(),
         };
 
         if let Ok(json) = serde_json::to_string_pretty(&settings) {
@@ -134,6 +146,8 @@ impl AppState {
         *self.toggle_shortcut.lock().await = settings.toggle_shortcut;
         *self.cancel_shortcut.lock().await = settings.cancel_shortcut;
         *self.recording_mode.lock().await = settings.recording_mode;
+        *self.lemonade_enabled.lock().await = settings.lemonade_enabled;
+        *self.lemonade_model.lock().await = settings.lemonade_model;
     }
 }
 
@@ -978,6 +992,113 @@ async fn restart_backend(app: AppHandle, state: State<'_, AppState>) -> Result<(
     Ok(())
 }
 
+// ===========================================================================
+// Phase 3D: Lemonade Sidecar (LLM Korrektur via NPU + Gemma 4)
+// ===========================================================================
+
+/// Health-Check: ist Lemonade auf Port 8000 erreichbar?
+async fn check_lemonade_health() -> bool {
+    match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+    {
+        Ok(client) => match client.get("http://127.0.0.1:8000/v1/models").send().await {
+            Ok(resp) => resp.status().is_success(),
+            Err(_) => false,
+        },
+        Err(_) => false,
+    }
+}
+
+/// Startet den Lemonade-Sidecar, falls nicht bereits aktiv und falls aktiviert.
+/// Gibt true zurück, wenn Lemonade läuft (oder schon lief).
+async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
+    // Prüfen, ob Lemonade deaktiviert ist
+    if !*state.lemonade_enabled.lock().await {
+        log::info!("🍋 Lemonade deaktiviert (config) — LLM-Korrektur aus");
+        return false;
+    }
+    // Bereits aktiv?
+    if check_lemonade_health().await {
+        return true;
+    }
+    // Bestehenden Child-Handle aufräumen (falls der Prozess zuvor gecrasht ist)
+    if state.lemonade_child.lock().await.is_some() {
+        *state.lemonade_child.lock().await = None;
+    }
+    // Sidecar spawnen
+    use tauri_plugin_shell::ShellExt;
+    let sidecar = app.shell().sidecar("binaries/lemond");
+    let sidecar = match sidecar {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            log::warn!("⚠️ Lemonade-Binary nicht gefunden: {}", e);
+            return false;
+        }
+    };
+    let (rx, child) = match sidecar.spawn() {
+        Ok(pair) => pair,
+        Err(e) => {
+            log::warn!("⚠️ Lemonade-Sidecar konnte nicht gestartet werden: {}", e);
+            return false;
+        }
+    };
+    *state.lemonade_child.lock().await = Some(child);
+    // Output-Events loggen (optional, wie bei backend)
+    let _ = rx;
+    log::info!("🍋 Lemonade-Sidecar gestartet, warte auf Health-Check...");
+    // Health-Check mit Timeout (bis zu 15s)
+    for attempt in 1..=15 {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        if check_lemonade_health().await {
+            log::info!("✅ Lemonade ist nach {}s bereit", attempt);
+            return true;
+        }
+    }
+    log::warn!("⚠️ Lemonade nicht innerhalb 15s bereit — LLM-Korrektur deaktiviert");
+    false
+}
+
+#[tauri::command]
+async fn get_llm_provider_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let enabled = *state.lemonade_enabled.lock().await;
+    let model = state.lemonade_model.lock().await.clone();
+    let healthy = if enabled { check_lemonade_health().await } else { false };
+    Ok(serde_json::json!({
+        "provider": if healthy { "lemonade" } else { "none" },
+        "model": model,
+        "enabled": enabled,
+        "health": healthy,
+    }))
+}
+
+#[tauri::command]
+async fn set_lemonade_model(model: String, state: State<'_, AppState>) -> Result<(), String> {
+    log::info!("🍋 Setze Lemonade-Modell: {}", model);
+    *state.lemonade_model.lock().await = model;
+    state.save_settings().await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_lemonade_enabled(enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
+    log::info!("🍋 Lemonade {}", if enabled { "aktiviert" } else { "deaktiviert" });
+    *state.lemonade_enabled.lock().await = enabled;
+    state.save_settings().await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn restart_lemonade(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    log::info!("🔄 Restarting Lemonade...");
+    if let Some(child) = state.lemonade_child.lock().await.take() {
+        let _ = child.kill();
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    }
+    let running = ensure_lemonade_running(&app, &state).await;
+    Ok(running)
+}
+
 // Tray menu
 fn create_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, tauri::Error> {
     let toggle = MenuItem::with_id(app, "toggle", "🎙️ Start/Stop Recording (F9)", true, None::<&str>)?;
@@ -1112,6 +1233,13 @@ pub fn run() {
             // Wait a moment for backend to start
             std::thread::sleep(std::time::Duration::from_secs(1));
             log::info!("✅ Backend server started");
+
+            // Phase 3D: Lemonade-Sidecar starten (optional, NPU LLM-Korrektur)
+            let lemonade_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state: tauri::State<AppState> = lemonade_handle.state();
+                let _ = ensure_lemonade_running(&lemonade_handle, &state).await;
+            });
 
             // Smart Pre-Load: Start async model load on app startup
             log::info!("📥 Smart Pre-Load: Starting async model load on startup...");
@@ -1371,14 +1499,18 @@ pub fn run() {
             set_preferred_languages,
             get_launch_on_startup,
             set_launch_on_startup,
-            restart_backend
+            restart_backend,
+            get_llm_provider_status,
+            set_lemonade_model,
+            set_lemonade_enabled,
+            restart_lemonade
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    // Globaler Exit-Handler: Backend-Sidecar bei JEDEM Beendigungspfad sauber
+    // Globaler Exit-Handler: Backend- UND Lemonade-Sidecar bei JEDEM Beendigungspfad sauber
     // killen (Tray-Quit, OS-Shutdown, taskkill, Hauptfenster-Zerstörung),
-    // nicht nur im Tray-Quit-Pfad. Verhindert herrenlose whisper-backend.exe.
+    // nicht nur im Tray-Quit-Pfad. Verhindert herrenlose whisper-backend.exe / lemond.exe.
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
             let state: tauri::State<AppState> = app_handle.state();
@@ -1389,6 +1521,14 @@ pub fn run() {
                         log::warn!("⚠️ Failed to kill backend on exit: {}", e);
                     } else {
                         log::info!("✅ Backend sidecar killed on exit");
+                    }
+                }
+                if let Some(child) = state.lemonade_child.lock().await.take() {
+                    log::info!("🛑 App exiting: killing Lemonade sidecar");
+                    if let Err(e) = child.kill() {
+                        log::warn!("⚠️ Failed to kill Lemonade on exit: {}", e);
+                    } else {
+                        log::info!("✅ Lemonade sidecar killed on exit");
                     }
                 }
             });

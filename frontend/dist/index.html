@@ -845,7 +845,7 @@
                 <div class="config-row">
                     <div class="config-row-left">
                         <div class="config-row-title">LLM-Korrektur</div>
-                        <div class="config-row-description">Grammatik &amp; Disfluenzen mit lokalem KI-Modell glätten (Qwen3-1.7B)</div>
+                        <div class="config-row-description">Grammatik &amp; Disfluenzen mit Gemma 4 auf dem NPU glätten (via Lemonade + FastFlowLM)</div>
                     </div>
                     <div class="config-row-right">
                         <span id="correctionStatusBadge" class="status-indicator" style="padding:4px 10px;font-size:12px;background:rgba(102,126,234,0.15);color:#667eea;">…</span>
@@ -855,19 +855,22 @@
 
                 <div class="config-row">
                     <div class="config-row-left">
-                        <div class="config-row-title">iGPU-Beschleunigung (DirectML)</div>
-                        <div class="config-row-description">Experimentell: GPU-Support für AMD/Intel/NVIDIA. Bei q4f16-Modellen können Präzisionsprobleme auftreten — bei Fehlern deaktivieren.</div>
+                        <div class="config-row-title">Gemma 4 Modell</div>
+                        <div class="config-row-description">E2B (2,3B, stabil) oder E4B (4,5B, experimentell — Serve-Blocker in FastFlowLM)</div>
                     </div>
                     <div class="config-row-right">
                         <span id="correctionProviderBadge" class="status-indicator" style="padding:4px 10px;font-size:12px;background:rgba(102,126,234,0.15);color:#667eea;">…</span>
-                        <div class="toggle-switch" id="directMlToggle" onclick="toggleDirectMl()"></div>
+                        <select id="lemonadeModelSelect" onchange="setLemonadeModel(this.value)" style="padding:4px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-main);color:var(--text-primary);font-size:12px;">
+                            <option value="gemma4-it:e2b">Gemma 4 E2B (empfohlen)</option>
+                            <option value="gemma4-it:e4b">Gemma 4 E4B (experimentell)</option>
+                        </select>
                     </div>
                 </div>
 
                 <div class="config-row" style="flex-direction:column;align-items:stretch;gap:10px;">
                     <div class="config-row-left" style="flex-direction:column;align-items:stretch;gap:4px;">
                         <div class="config-row-title">Korrektur-Prompt</div>
-                        <div class="config-row-description">Nur der inhaltliche Teil (technisches Gerüst bleibt fix). ONNX-Dateien gesucht in <code id="correctionModelPath">model\qwen3-1.7b-onnx\</code> oder <code>...\onnx\</code> (q4f16/q4)</div>
+                        <div class="config-row-description">Nur der inhaltliche Teil (technisches Gerüst bleibt fix). Ausgeführt via Lemonade (<code id="correctionModelPath">localhost:8000</code>)</div>
                     </div>
                     <textarea id="correctionPrompt" rows="4" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-main);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;" placeholder="System-Anweisung an das Korrektur-Modell..."></textarea>
                     <div style="display:flex;gap:10px;align-items:center;">
@@ -1430,64 +1433,43 @@
                 if (ta && typeof data.prompt === 'string') {
                     ta.value = data.prompt;
                 }
-                const pathEl = document.getElementById('correctionModelPath');
-                if (pathEl && data.onnx_dir) {
-                    pathEl.textContent = data.onnx_dir;
-                }
-                // DirectML-Toggle setzen (NEU Phase 3C)
-                const dmlToggle = document.getElementById('directMlToggle');
-                if (dmlToggle) {
-                    if (data.use_directml) {
-                        dmlToggle.classList.add('active');
-                    } else {
-                        dmlToggle.classList.remove('active');
-                    }
+                // Modell-Auswahl setzen (Phase 3D)
+                const modelSelect = document.getElementById('lemonadeModelSelect');
+                if (modelSelect && data.model) {
+                    modelSelect.value = data.model;
                 }
                 updateCorrectionStatusIndicator(data.status, data.missing_files, data.quant);
-                updateProviderIndicator(data.active_provider, data.prefix_cache_active); // NEU
+                updateProviderIndicator(data.provider, data.health, data.model);
             } catch (e) {
                 console.error('Could not load LLM correction setting:', e);
             }
         }
 
-        async function toggleDirectMl() {
-            const toggle = document.getElementById('directMlToggle');
-            const enabled = !toggle.classList.contains('active');
-            if (enabled) {
-                toggle.classList.add('active');
-            } else {
-                toggle.classList.remove('active');
-            }
+        async function setLemonadeModel(model) {
             try {
-                const resp = await fetch(`${BACKEND_URL}/settings/correction`, {
+                await fetch(`${BACKEND_URL}/settings/correction`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ use_directml: enabled })
+                    body: JSON.stringify({ model })
                 });
-                const data = await resp.json();
-                updateProviderIndicator(data.active_provider, data.prefix_cache_active);
-                updateCorrectionStatusIndicator(data.status);
+                console.log('🍋 Lemonade-Modell gesetzt:', model);
             } catch (error) {
-                console.error('❌ Error toggling DirectML:', error);
+                console.error('❌ Error setting Lemonade model:', error);
             }
         }
 
-        function updateProviderIndicator(activeProvider, prefixCacheActive) {
+        function updateProviderIndicator(provider, health, model) {
             const el = document.getElementById('correctionProviderBadge');
             if (!el) return;
-            const isGpu = activeProvider && activeProvider.indexOf('Dml') !== -1;
-            const text = isGpu ? 'GPU aktiv' : 'CPU-Modus';
-            const bg = isGpu ? 'rgba(52,211,153,0.15)' : 'rgba(102,126,234,0.15)';
-            const color = isGpu ? '#34d399' : '#667eea';
+            const isHealthy = provider === 'lemonade' && health;
+            const text = isHealthy ? 'NPU aktiv' : 'Nicht verfügbar';
+            const bg = isHealthy ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)';
+            const color = isHealthy ? '#34d399' : '#ef4444';
             el.textContent = text;
             el.style.background = bg;
             el.style.color = color;
-            // Tooltip: Provider + Prefix-Cache-Status
-            let tip = 'Aktiver Provider: ' + (activeProvider || '—');
-            if (prefixCacheActive) {
-                tip += '\n⚡ Prefix-Cache aktiv (System-Prompt zwischengespeichert)';
-            }
-            el.title = tip;
+            el.title = 'Lemonade: ' + (isHealthy ? 'verbunden' : 'nicht erreichbar') +
+                       '\nModell: ' + (model || '—');
         }
 
         async function saveCorrectionSettings() {

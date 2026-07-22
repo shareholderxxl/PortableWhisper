@@ -25,12 +25,10 @@ from parakeet_engine import ParakeetEngine
 import gpu_manager
 from text_cleanup import clean_text
 from text_correction import (
-    correct_text,          # Phase 3B: LLM-gestuetzte Korrektur
-    text_corrector,        # Singleton (Status, Pre-Load)
+    correct_text,          # Phase 3D: LLM-Korrektur via Lemonade/Gemma 4
+    lemonade,              # Singleton (Health-Status)
     set_system_prompt,     # editierbarer Prompt
     get_system_prompt,
-    set_use_directml,      # DirectML-Toggle (GPU an/aus)
-    get_use_directml,
 )
 
 # Konfiguration
@@ -70,7 +68,7 @@ is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
-llm_correction_enabled = True  # Phase 3C: LLM-gestuetzte Korrektur (Qwen3-1.7B, lazy, Fallback auf Rohtext)
+llm_correction_enabled = True  # Phase 3D: LLM-gestuetzte Korrektur (Gemma 4 via Lemonade/NPU, Fallback auf Rohtext)
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -167,29 +165,25 @@ async def lifespan(app: FastAPI):
     logger.info(f"Health Check: http://{BACKEND_HOST}:{BACKEND_PORT}/health")
     logger.info("=" * 60)
 
-    # Phase 3B: Korrektur-Settings aus zentraler config.json laden
+    # Phase 3D: Korrektur-Settings aus zentraler config.json laden
     try:
         cfg = load_config()
         corr = cfg.get("correction", {}) if isinstance(cfg, dict) else {}
         if "enabled" in corr:
             llm_correction_enabled = bool(corr["enabled"])
         set_system_prompt(corr.get("system_prompt", ""))
-        set_use_directml(corr.get("use_directml", True))
-        logger.info(f"✨ LLM-Korrektur: enabled={llm_correction_enabled}, "
-                    f"DirectML={get_use_directml()}")
+        logger.info(f"✨ LLM-Korrektur: enabled={llm_correction_enabled} "
+                    f"(Lemonade/Gemma 4 via NPU)")
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht geladen werden: {e}")
 
-    # Phase 3B: Pre-Load des Korrektur-Modells im Hintergrund (wenn aktiviert
-    # und vorhanden), damit die erste Transkription nicht auf den Load wartet.
+    # Phase 3D: Lemonade-Health-Check (Modell-Preload entfällt — Lemonade lädt
+    # selbst). Wir loggen nur den Status.
     if llm_correction_enabled:
-        present, missing = text_corrector.check_files()
-        if present:
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, text_corrector.load)
-            logger.info("📥 Korrektur-Modell wird im Hintergrund vorgeladen...")
+        if lemonade.is_available():
+            logger.info("🍋 Lemonade verfügbar — LLM-Korrektur aktiv (NPU)")
         else:
-            logger.info(f"ℹ️ Korrektur-Modell unvollstaendig ({missing}) — kein Pre-Load")
+            logger.info("ℹ️ Lemonade noch nicht bereit — LLM-Korrektur pending")
 
     # Check GPU libraries at startup
     logger.info("🔍 Checking GPU libraries...")
@@ -275,11 +269,13 @@ async def health_check():
         elif whisper_engine.is_model_downloaded():
             model_status = "available"
 
-    # Phase 3B: Status des Korrektur-Modells (eigener Status, neben dem ASR-Modell)
+    # Phase 3D: Status der LLM-Korrektur (Lemonade Health-Check statt Modell-Status)
     if not llm_correction_enabled:
         corr_status = "disabled"
+    elif lemonade.is_available():
+        corr_status = "loaded"
     else:
-        corr_status, _ = text_corrector.get_status()
+        corr_status = "missing"
 
     return HealthResponse(
         status="ok",
@@ -288,7 +284,7 @@ async def health_check():
         model_status=model_status,
         recording=is_recording,
         correction_model_status=corr_status,
-        correction_model_path=text_corrector.get_model_dir(),
+        correction_model_path=f"lemonade:{lemonade.model}",
     )
 
 
@@ -948,27 +944,18 @@ async def set_cleanup_setting(payload: dict):
 
 
 # ============================================================
-# Phase 3B: LLM Correction Settings
+# Phase 3D: LLM Correction Settings (Lemonade + Gemma 4)
 # ============================================================
 
 @app.get("/settings/correction")
 async def get_correction_setting():
-    if llm_correction_enabled:
-        status, missing = text_corrector.get_status()
-    else:
-        status, missing = "disabled", []
-    onnx_dir, quant = text_corrector.get_layout()
+    lemonade_healthy = lemonade.is_available()
     return {
         "enabled": llm_correction_enabled,
         "prompt": get_system_prompt(),
-        "use_directml": get_use_directml(),
-        "model_path": text_corrector.get_model_dir(),
-        "onnx_dir": onnx_dir,
-        "quant": quant,
-        "status": status,
-        "missing_files": missing,
-        "active_provider": text_corrector.get_active_provider(),       # NEU (UI-Diagnose)
-        "prefix_cache_active": text_corrector.is_prefix_cache_active(), # NEU (UI-Diagnose)
+        "model": lemonade.model,
+        "provider": "lemonade" if lemonade_healthy else "none",
+        "health": lemonade_healthy,
     }
 
 
@@ -982,13 +969,9 @@ async def set_correction_setting(payload: dict):
     if prompt is not None:
         set_system_prompt(str(prompt))
 
-    # DirectML-Toggle (erfordert Modell-Reload bei Aenderung)
-    dml_changed = False
-    if "use_directml" in payload:
-        new_dml = bool(payload["use_directml"])
-        if new_dml != get_use_directml():
-            set_use_directml(new_dml)
-            dml_changed = True
+    # Modell-Auswahl (gemma4-it:e2b / gemma4-it:e4b)
+    if "model" in payload:
+        lemonade.model = str(payload["model"])
 
     # In zentrale config.json persistieren (ueber App-Neustarts hinaus)
     try:
@@ -998,39 +981,21 @@ async def set_correction_setting(payload: dict):
         cfg.setdefault("correction", {})
         cfg["correction"]["enabled"] = llm_correction_enabled
         cfg["correction"]["system_prompt"] = get_system_prompt()
-        cfg["correction"]["use_directml"] = get_use_directml()
+        cfg["correction"]["model"] = lemonade.model
         save_config(cfg)
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht gespeichert werden: {e}")
 
+    lemonade_healthy = lemonade.is_available()
     logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}, "
-                f"DirectML={get_use_directml()}")
+                f"model={lemonade.model}, lemonade={'ok' if lemonade_healthy else 'pending'}")
 
-    # DirectML-Aenderung erfordert Reload (neuer EP beim Session-Aufbau)
-    if dml_changed and text_corrector.is_loaded():
-        text_corrector._loaded = False
-        text_corrector._load_state = "missing"
-
-    # Wenn gerade aktiviert + Modell vorhanden + nicht geladen -> Hintergrund-Load
-    if enabled and not text_corrector.is_loaded():
-        present, _ = text_corrector.check_files()
-        if present:
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, text_corrector.load)
-            logger.info("📥 Korrektur-Modell wird im Hintergrund geladen...")
-
-    if enabled:
-        status, missing = text_corrector.get_status()
-    else:
-        status, missing = "disabled", []
     return {
         "enabled": llm_correction_enabled,
         "prompt": get_system_prompt(),
-        "use_directml": get_use_directml(),
-        "status": status,
-        "missing_files": missing,
-        "active_provider": text_corrector.get_active_provider(),       # NEU (UI-Diagnose)
-        "prefix_cache_active": text_corrector.is_prefix_cache_active(), # NEU (UI-Diagnose)
+        "model": lemonade.model,
+        "provider": "lemonade" if lemonade_healthy else "none",
+        "health": lemonade_healthy,
     }
 
 

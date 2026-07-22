@@ -17,6 +17,11 @@
           "name": "binaries/whisper-backend",
           "sidecar": true,
           "args": true
+        },
+        {
+          "name": "binaries/lemond",
+          "sidecar": true,
+          "args": true
         }
       ]
     },
@@ -25,6 +30,11 @@
       "allow": [
         {
           "name": "binaries/whisper-backend",
+          "sidecar": true,
+          "args": true
+        },
+        {
+          "name": "binaries/lemond",
           "sidecar": true,
           "args": true
         }

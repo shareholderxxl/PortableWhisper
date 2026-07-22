@@ -1,8 +1,12 @@
-# PortableWhisper Backend — Portable Build-Dependencies (Phase 2)
+# PortableWhisper Backend — Portable Build-Dependencies (Phase 3D)
 #
 # Zweck: PyInstaller-Build des Backends in eine eigenstaendige
 # whisper-backend.exe (Sidecar). onnx-asr + onnxruntime (OHNE torch,
 # OHNE ctranslate2). Python 3.11 empfohlen (PyInstaller-Kompatibilitaet).
+#
+# Phase 3D: LLM-Korrektur erfolgt via Lemonade-Sidecar (Gemma 4 NPU).
+# Daher entfallen onnxruntime-directml, tokenizers und numpy-LLM-Abhängigkeiten.
+# text_correction.py ist jetzt ein reiner HTTP-Client (requests).
 #
 # Install:
 #   python -m venv venv && venv\Scripts\activate
@@ -30,11 +34,11 @@ pyaudio>=0.2.14  # Alternative fuer Windows WASAPI
 
 # Speech-to-Text (Phase 2 — Parakeet TDT v3 via onnx-asr, OHNE torch)
 onnx-asr>=0.11.0
-onnxruntime-directml>=1.20.0  # CPU + DirectML (GPU-Support für AMD/Intel/NVIDIA). Qwen3 Standard-Transformer ist DirectML-kompatibel.
+onnxruntime>=1.20.0  # CPU-only für Parakeet STT. LLM-Korrektur läuft separat via Lemonade.
 huggingface_hub>=0.30.0  # fuer on-demand Modell-Download
 
-# LLM-Post-Processing (Phase 3C — Qwen3-1.7B Korrektur via plain onnxruntime)
-tokenizers>=0.21.0       # Tokenisierung des Korrektur-Modells (tokenizer.json)
+# LLM-Post-Processing (Phase 3D — Gemma 4 via Lemonade-Sidecar, NPU)
+requests>=2.32.0         # HTTP-Client für Lemonade's OpenAI-kompatible API
 
 # Build-Tooling
 pyinstaller>=6.10.0,<7  # auf 6.x pinnen: collect_all liefert hier stabil 3 Werte

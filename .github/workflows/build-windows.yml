@@ -13,7 +13,7 @@ name: Build Windows Portable
 
 on:
   push:
-    branches: [main, phase-1, phase-1-2, phase-2, phase-3, phase-3b, phase-3b-kvcache-dml, phase-3c-qwen3]
+    branches: [main, phase-1, phase-1-2, phase-2, phase-3, phase-3b, phase-3b-kvcache-dml, phase-3c-qwen3, phase-3d-lemonade-gemma4]
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -70,9 +70,10 @@ jobs:
 
       # Pre-flight: stellt sicher, dass die schweren ML-Imports außerhalb von
       # PyInstaller sauber laden (und nicht bereits hier haengen).
+      # Phase 3D: tokenizers entfallen (LLM-Korrektur via Lemonade, nicht mehr onnxruntime-basiert)
       - name: Pre-flight import check
         working-directory: backend
-        run: python -c "import onnx_asr, onnxruntime, huggingface_hub, tokenizers; print('imports OK')"
+        run: python -c "import onnx_asr, onnxruntime, huggingface_hub, requests; print('imports OK')"
 
       - name: Build Backend (PyInstaller)
         working-directory: backend
@@ -97,6 +98,43 @@ jobs:
           Copy-Item backend/dist/whisper-backend.exe `
             frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe -Force
           Write-Host "Sidecar gestaged: frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe"
+
+      # ============================================================
+      # 2b. Lemonade-Binary (Phase 3D: NPU-LLM-Korrektur via Gemma 4)
+      #     Download von lemonade-sdk/lemonade GitHub Releases.
+      #     TODO: Exakte Asset-Struktur klären (Installer-EXE entpacken oder
+      #     direkte lemond.exe-Distribution). Aktuell: Placeholder-Schritt,
+      #     der graceful überspringt, falls LEMONADE_RELEASE_URL nicht gesetzt ist.
+      # ============================================================
+      - name: Download Lemonade binary (lemond)
+        run: |
+          $url = $env:LEMONADE_RELEASE_URL
+          if (-not $url) {
+            Write-Host "⚠️ LEMONADE_RELEASE_URL nicht gesetzt — überspringe Lemonade-Download."
+            Write-Host "   Die App läuft ohne LLM-Korrektur (NPU-Feature deaktiviert bis Binary verfügbar)."
+            # Platzhalter-Datei, damit Tauri-Build nicht wegen fehlendem externalBin fehlschlägt
+            New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
+            $placeholder = "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
+            if (-not (Test-Path $placeholder)) {
+              Set-Content -Path $placeholder -Value "# placeholder until Lemonade binary is available"
+            }
+            Write-Host "Placeholder erstellt: $placeholder"
+            return
+          }
+          Write-Host "Downloading Lemonade from: $url"
+          $zip = "${{ runner.temp }}/lemonade.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          # TODO: Entpacken und lemond.exe extrahieren, sobald Asset-Struktur bekannt
+          Expand-Archive -Path $zip -DestinationPath "${{ runner.temp }}/lemonade" -Force
+          $lemond = Get-ChildItem -Recurse "${{ runner.temp }}/lemonade" -Filter "lemond.exe" | Select-Object -First 1
+          if ($lemond) {
+            Copy-Item $lemond.FullName "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe" -Force
+            Write-Host "Lemonade gestaged: frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
+          } else {
+            throw "lemond.exe nicht im Lemonade-Release gefunden"
+          }
+        env:
+          LEMONADE_RELEASE_URL: ${{ secrets.LEMONADE_RELEASE_URL }}
 
       # ============================================================
       # 3. Tauri-App bauen (--no-bundle => nur .exe, kein Installer)
@@ -169,6 +207,16 @@ jobs:
           # PortableWhisper.exe in das ZIP legen.
           Copy-Item frontend/src-tauri/target/release/app.exe "$stage/PortableWhisper.exe"
           Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe "$stage/binaries/whisper-backend.exe"
+
+          # Phase 3D: Lemonade-Sidecar (nur falls echte Binary vorhanden, nicht Placeholder)
+          $lemondSrc = "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
+          if ((Test-Path $lemondSrc) -and ((Get-Item $lemondSrc).Length -gt 1KB)) {
+            Copy-Item $lemondSrc "$stage/binaries/lemond.exe"
+            Write-Host "Lemonade in ZIP aufgenommen"
+          } else {
+            Write-Host "⚠️ Lemonade-Binary ist Placeholder oder fehlt — nicht im ZIP enthalten"
+          }
+
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE $stage/ -ErrorAction SilentlyContinue
           Copy-Item LICENSES.md $stage/ -ErrorAction SilentlyContinue
