@@ -64,12 +64,18 @@ DEFAULT_QUANT = "q4f16"
 DEFAULT_MODEL_SUBDIR = "qwen3-1.7b-onnx"
 MAX_PROMPT_CHARS = 2000
 
+# Sampling-Parameter (Qwen3 generation_config.json empfiehlt Sampling, nicht
+# Greedy). Greedy bei einem 1.7B-Modell fuehrt zu Echo-Effekten (Input wird
+# unveraendert zurueckgegeben) und Halluzinationen.
+SAMPLING_TEMPERATURE = 0.7
+SAMPLING_TOP_K = 20
+SAMPLING_TOP_P = 0.95
+
 DEFAULT_SYSTEM_PROMPT = (
-    "Du bist ein Korrekturassistent fuer transkribierte deutsche Diktate. "
-    "Korrigiere den Text: entferne Fuellwoerter und Disfluenzen (aehm, hm, ...), "
-    "hebe Grammatik und Rechtschreibung, loese Selbstkorrekturen auf. Behalte "
-    "Sinn, Stil und die urspruengliche Wortstellung bei. Gib NUR den "
-    "korrigierten Text zurueck, ohne Erklaerung, ohne Anfuehrungszeichen."
+    "Korrigiere Rechtschreibung und Grammatik des folgenden Textes. "
+    "Entferne Fuellwoerter wie aehm oder hm. "
+    "Behalte Sinn und Wortstellung bei. "
+    "Antworte nur mit dem korrigierten Text."
 )
 
 # ---------------------------------------------------------------------------
@@ -98,10 +104,14 @@ def get_system_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
-# DirectML-Toggle (GPU an/aus). Default ON — Qwen3 (Standard Transformer)
-# hat keine Precision-Probleme mit DirectML (im Gegensatz zu Qwen3.5-Hybrid).
+# DirectML-Toggle (GPU an/aus). Default OFF — DirectML hat einen
+# MatMulNBits-Praezisions-Bug bei q4f16-Modellen: der 4-Bit-Dequantisierungs-
+# Operator liefert auf GPU andere Ergebnisse als auf CPU. Nach 28 Layern
+# akkumulieren die Fehler und das Modell divergiert (<think>-Token, Garbage).
+# Zudem ist DirectML auf iGPUs (APUs mit Shared-Memory) langsamer als CPU
+# wegen Copy-Overhead. Toggle bleibt fuer Experimente verfuegbar.
 # ---------------------------------------------------------------------------
-use_directml: bool = True
+use_directml: bool = False
 
 
 def set_use_directml(value: bool) -> bool:
@@ -374,6 +384,41 @@ class TextCorrector:
             return out_name.replace("present.", "past_key_values.", 1)
         return None
 
+    @staticmethod
+    def _sample(logits_row: np.ndarray,
+                temperature: float = SAMPLING_TEMPERATURE,
+                top_k: int = SAMPLING_TOP_K,
+                top_p: float = SAMPLING_TOP_P) -> int:
+        """Temperature + Top-K + Top-P (nucleus) Sampling.
+        Qwen3 generation_config empfiehlt Sampling statt Greedy.
+        Greedy bei 1.7B fuehrt zu Echo-Effekten und Halluzinationen."""
+        logits = logits_row.astype(np.float64)  # float16 → float64 fuer stable softmax
+        # Temperature
+        if temperature > 0:
+            logits = logits / temperature
+        # Top-K: nur die k wahrscheinlichsten Tokens behalten
+        if top_k > 0 and top_k < len(logits):
+            top_idx = np.argpartition(logits, -top_k)[-top_k:]
+            mask = np.full_like(logits, -1e30)
+            mask[top_idx] = logits[top_idx]
+            logits = mask
+        # Top-P (nucleus): kleinste Tokens entfernen bis cumsum >= top_p
+        if top_p < 1.0:
+            sorted_idx = np.argsort(logits)[::-1]
+            probs = np.exp(logits[sorted_idx] - logits[sorted_idx].max())
+            probs /= probs.sum()
+            cumsum = np.cumsum(probs)
+            cutoff = np.searchsorted(cumsum, top_p) + 1
+            keep = sorted_idx[:cutoff]
+            mask = np.full_like(logits, -1e30)
+            mask[keep] = logits[keep]
+            logits = mask
+        # Normalisieren und ziehen
+        logits = logits - logits.max()
+        probs = np.exp(logits)
+        probs /= probs.sum()
+        return int(np.random.choice(len(probs), p=probs))
+
     def _zero_cache_inputs(self) -> dict:
         """Erzeugt geleerte past_key_values fuer den Prefill-Pass
         (past_sequence_length=0 fuer alle KV-Cache-Layer)."""
@@ -467,7 +512,7 @@ class TextCorrector:
 
         N_user = len(user_ids)
         N_total = N_sys + N_user
-        cap = min(256, max(64, int(N_total * 1.5)))
+        cap = min(512, max(128, int(N_total * 2.0)))
         generated: list[int] = []
         eos_hit = False
         t0 = time.time()
@@ -483,7 +528,7 @@ class TextCorrector:
         outs = self._decoder.run(None, feed)
         prefill_dt = time.time() - t0
         logits = outs[self._output_names.index("logits")]
-        nxt = int(np.argmax(logits[0, -1]))
+        nxt = self._sample(logits[0, -1])
 
         # Cache aus Outputs extrahieren (System + User, wachsend)
         cache = {}
@@ -512,7 +557,7 @@ class TextCorrector:
 
             outs = self._decoder.run(None, feed)
             logits = outs[self._output_names.index("logits")]
-            nxt = int(np.argmax(logits[0, 0]))
+            nxt = self._sample(logits[0, 0])
 
             for name, val in zip(self._output_names, outs):
                 past = self._present_to_past(name)
@@ -540,7 +585,7 @@ class TextCorrector:
             return text
 
         N = len(prompt_ids)
-        cap = min(256, max(64, int(N * 1.5)))
+        cap = min(512, max(128, int(N * 2.0)))
         generated: list[int] = []
         eos_hit = False
         t0 = time.time()
@@ -556,7 +601,7 @@ class TextCorrector:
         outs = self._decoder.run(None, feed)
         prefill_dt = time.time() - t0
         logits = outs[self._output_names.index("logits")]
-        nxt = int(np.argmax(logits[0, -1]))
+        nxt = self._sample(logits[0, -1])
 
         cache = {}
         for name, val in zip(self._output_names, outs):
@@ -584,7 +629,7 @@ class TextCorrector:
 
             outs = self._decoder.run(None, feed)
             logits = outs[self._output_names.index("logits")]
-            nxt = int(np.argmax(logits[0, 0]))
+            nxt = self._sample(logits[0, 0])
 
             for name, val in zip(self._output_names, outs):
                 past = self._present_to_past(name)
@@ -636,7 +681,7 @@ class TextCorrector:
             return text
 
         all_ids = list(prompt_ids)
-        cap = min(384, max(128, int(len(prompt_ids) * 1.6)))
+        cap = min(768, max(128, int(len(prompt_ids) * 2.0)))
         generated: list[int] = []
         eos_hit = False
         t0 = time.time()
@@ -645,7 +690,7 @@ class TextCorrector:
             feed = self._build_feed(np.array([all_ids], dtype=np.int64), len(all_ids))
             outs = self._decoder.run(None, feed)
             logits = outs[self._output_names.index("logits")]
-            nxt = int(np.argmax(logits[0, -1]))
+            nxt = self._sample(logits[0, -1])
 
             if nxt in (EOS_TOKEN_ID, IM_END):
                 eos_hit = True
