@@ -2,12 +2,12 @@
 LLM Text Correction (Phase 3C — Qwen3 Migration).
 
 Post-Processing des transkribierten Textes mit einem lokalen Qwen3-1.7B-
-Modell (ONNX, q4f16) via plain onnxruntime — ohne onnxruntime-genai, ohne
+Modell (ONNX, q4) via plain onnxruntime — ohne onnxruntime-genai, ohne
 genai-Format, ohne torch. Das Optimum-Export laeuft direkt auf der
 onnxruntime CPU oder via DirectML auf der GPU (AMD/Intel/NVIDIA).
 
 Architektur: Qwen3 ist ein Standard-Transformer (28 Layer full attention,
-GQA). Das Single-File-ONNX-Format (`model_q4f16.onnx`) nimmt `input_ids`
+GQA). Das Single-File-ONNX-Format (`model_q4.onnx`) nimmt `input_ids`
 direkt (Embedding integriert) — keine separate Embed-Session mehr.
 
   1. **KV-Cache + Prefix-Cache (Standard)** — _generate_kvcache():
@@ -60,7 +60,7 @@ IM_START = 151644
 IM_END = 151645
 EOS_TOKEN_ID = 151645
 
-DEFAULT_QUANT = "q4f16"
+DEFAULT_QUANT = "q4"
 DEFAULT_MODEL_SUBDIR = "qwen3-1.7b-onnx"
 MAX_PROMPT_CHARS = 2000
 
@@ -105,11 +105,12 @@ def get_system_prompt() -> str:
 
 # ---------------------------------------------------------------------------
 # DirectML-Toggle (GPU an/aus). Default OFF — DirectML hat einen
-# MatMulNBits-Praezisions-Bug bei q4f16-Modellen: der 4-Bit-Dequantisierungs-
-# Operator liefert auf GPU andere Ergebnisse als auf CPU. Nach 28 Layern
-# akkumulieren die Fehler und das Modell divergiert (<think>-Token, Garbage).
-# Zudem ist DirectML auf iGPUs (APUs mit Shared-Memory) langsamer als CPU
-# wegen Copy-Overhead. Toggle bleibt fuer Experimente verfuegbar.
+# MatMulNBits-Praezisions-Bug bei Q4-Modellen (sowohl q4 als auch q4f16):
+# der 4-Bit-Dequantisierungs-Operator liefert auf GPU andere Ergebnisse
+# als auf CPU. Nach 28 Layern akkumulieren die Fehler und das Modell
+# divergiert (<think>-Token, Garbage). Zudem ist DirectML auf iGPUs (APUs
+# mit Shared-Memory) langsamer als CPU wegen Copy-Overhead. Toggle bleibt
+# fuer Experimente verfuegbar.
 # ---------------------------------------------------------------------------
 use_directml: bool = False
 
@@ -192,11 +193,12 @@ class TextCorrector:
         """Findet (onnx_dir, quant) fuer das Single-File-ONNX-Format.
         Sucht model_{quant}.onnx (ggf. mit externem _data Sidecar, der von
         onnxruntime automatisch geladen wird). Fallback-Kette:
-        konfigurierte Quant -> q4f16 -> q4."""
+        konfigurierte Quant -> q4 -> q4f16 ("q4" = FP32-Aktivierungen,
+        ~10-30% CPU-Beschleunigung, ~+720MB Modellgroesse)."""
         md = Path(self.get_model_dir())
         dirs = [md / "onnx", md]                      # onnx/ zuerst, dann flat
-        quants = [self.quant] if self.quant == "q4f16" else [self.quant, "q4f16"]
-        quants.append("q4")                            # letzter Fallback
+        quants = [self.quant] if self.quant == "q4" else [self.quant, "q4"]
+        quants.append("q4f16")                         # Fallback falls q4 fehlt
         for d in dirs:
             for q in quants:
                 if (d / f"model_{q}.onnx").exists():
@@ -287,7 +289,8 @@ class TextCorrector:
                 so = ort.SessionOptions()
                 so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
                 try:
-                    so.intra_op_num_threads = max(1, os.cpu_count() or 4)
+                    logical = os.cpu_count() or 4
+                    so.intra_op_num_threads = max(1, logical // 2 if logical >= 8 else logical)
                     so.inter_op_num_threads = 2
                     so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                 except Exception:
