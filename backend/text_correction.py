@@ -392,8 +392,15 @@ class TextCorrector:
                     dims.append(0)        # leerer Prefix
                 else:
                     dims.append(1)
-            is_float = "float" in (typ or "")
-            cache[name] = np.zeros(dims, dtype=np.float32 if is_float else np.int64)
+            # q4f16-Modelle haben float16-Aktivierungen/KV-Cache; q4 hat float32.
+            # Der ONNX-Typ-String ist z.B. "tensor(float16)" oder "tensor(float)".
+            if "float16" in (typ or ""):
+                dt = np.float16
+            elif "float" in (typ or ""):
+                dt = np.float32
+            else:
+                dt = np.int64
+            cache[name] = np.zeros(dims, dtype=dt)
         return cache
 
     def _get_or_build_prefix_cache(self, sys_ids):
@@ -671,8 +678,13 @@ class TextCorrector:
                     dims.append(0)   # Full-Recompute: kein KV-Cache aus Vergangenheit
                 else:
                     dims.append(1)
-            is_float = "float" in (typ or "")
-            dt = np.float32 if is_float else np.int64
+            # Gleiche float16/float32-Logik wie _zero_cache_inputs()
+            if "float16" in (typ or ""):
+                dt = np.float16
+            elif "float" in (typ or ""):
+                dt = np.float32
+            else:
+                dt = np.int64
             feed[name] = np.zeros(dims, dtype=dt)
         return feed
 
