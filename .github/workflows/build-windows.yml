@@ -105,6 +105,7 @@ jobs:
       #     WICHTIG: Nur ASCII-Zeichen im PowerShell-Skript.
       # ============================================================
       - name: Download and stage Lemonade Embeddable
+        timeout-minutes: 20
         run: |
           # Resolve latest release asset URL via GitHub API
           $release = Invoke-RestMethod "https://api.github.com/repos/lemonade-sdk/lemonade/releases/latest"
@@ -147,34 +148,54 @@ jobs:
             Write-Host "resources copied to $stageData/resources"
           }
 
-          # Start lemond briefly to generate config.json and initialize bin/
-          Write-Host "Starting lemond briefly to initialize config.json..."
+          # Start lemond and KEEP IT RUNNING: the lemonade CLI is a client that
+          # talks to the running lemond server, so backends install requires
+          # lemond to be up. (See embeddable docs: "Start lemond to download
+          # backends to ./bin/" -> lemond.exe ./ then lemonade backends install)
+          Write-Host "Starting lemond (stays up for backend install)..."
           $lemondExe = $lemond.FullName
           Push-Location $stageData
           $proc = Start-Process -FilePath $lemondExe -ArgumentList "./", "--port", "18099" -PassThru -NoNewWindow
-          Start-Sleep -Seconds 10
-          if (-not $proc.HasExited) {
-            $proc.Kill()
-            Start-Sleep -Seconds 2
+          $ready = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 1
+            if ($proc.HasExited) { break }
+            try {
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18099/v1/system-info" -TimeoutSec 2 -UseBasicParsing
+              if ($resp.StatusCode -eq 200) { $ready = $true; break }
+            } catch { }
           }
-          Pop-Location
+          if (-not $ready) {
+            Write-Host "[WARN] lemond did not become ready in time (exited: $($proc.HasExited))"
+          } else {
+            Write-Host "lemond ready after ~${i}s"
+          }
 
-          # Install FLM backend (NPU runtime) into bin/flm/
+          # Install FLM backend (NPU runtime) into bin/flm/ while lemond is up
+          # NOTE: spec format is "recipe:backend" -> flm:npu
+          # NOTE: --force bypasses hardware filtering (runner has no NPU)
           if ($lemonade) {
             Write-Host "Installing FLM backend (NPU)..."
-            Push-Location $stageData
-            & $lemonade.FullName backends install flm
+            & $lemonade.FullName backends install flm:npu --force 2>&1 | ForEach-Object { Write-Host "flm-install: $_" }
             if ($LASTEXITCODE -ne 0) {
               Write-Host "[WARN] FLM backend install returned exit code $LASTEXITCODE - continuing anyway"
             }
-            Pop-Location
             # Verify bin/flm exists
             if (Test-Path "$stageData/bin") {
               Write-Host "FLM backend staged in $stageData/bin"
             } else {
               Write-Host "[WARN] bin/ directory not created - FLM may need runtime install"
             }
+          } else {
+            Write-Host "[WARN] lemonade CLI not found - cannot install FLM backend"
           }
+
+          # Now kill lemond (config.json + bin/ are finalized by then)
+          if (-not $proc.HasExited) {
+            $proc.Kill()
+            Start-Sleep -Seconds 2
+          }
+          Pop-Location
 
           # Store stageData path for ZIP assembly step
           "LEMONADE_DATA_DIR=$stageData" | Out-File -FilePath $env:GITHUB_ENV -Append
