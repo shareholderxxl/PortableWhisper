@@ -100,41 +100,85 @@ jobs:
           Write-Host "Sidecar gestaged: frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe"
 
       # ============================================================
-      # 2b. Lemonade-Binary (Phase 3D: NPU-LLM-Korrektur via Gemma 4)
-      #     Download von lemonade-sdk/lemonade GitHub Releases.
-      #     TODO: Exakte Asset-Struktur klaeren (Installer-EXE entpacken oder
-      #     direkte lemond.exe-Distribution). Aktuell: Placeholder-Schritt,
-      #     der graceful ueberspringt, falls LEMONADE_RELEASE_URL nicht gesetzt ist.
-      #     WICHTIG: Nur ASCII-Zeichen im PowerShell-Skript (keine Umlaute/Emojis),
-      #     da der Windows Runner die .ps1 nicht als UTF-8 encodiert.
+      # 2b. Lemonade Embeddable (Phase 3D: NPU-LLM-Korrektur via Gemma 4)
+      #     Download portable lemond Binary + FLM Backend (ohne Modell).
+      #     WICHTIG: Nur ASCII-Zeichen im PowerShell-Skript.
       # ============================================================
-      - name: Download Lemonade binary (lemond)
+      - name: Download and stage Lemonade Embeddable
         run: |
-          $url = $env:LEMONADE_RELEASE_URL
-          if (-not $url) {
-            Write-Host "[WARN] LEMONADE_RELEASE_URL not set - skipping Lemonade download."
-            Write-Host "   App will run without LLM correction (NPU feature disabled until binary available)."
-            New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
-            $placeholder = "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
-            if (-not (Test-Path $placeholder)) {
-              Set-Content -Path $placeholder -Value "# placeholder until Lemonade binary is available"
-            }
-            Write-Host "Placeholder created: $placeholder"
-            return
+          # Resolve latest release asset URL via GitHub API
+          $release = Invoke-RestMethod "https://api.github.com/repos/lemonade-sdk/lemonade/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -like "lemonade-embeddable*windows*x64*" } | Select-Object -First 1
+          if (-not $asset) {
+            throw "Lemonade embeddable windows-x64 asset not found in latest release"
           }
-          Write-Host "Downloading Lemonade from: $url"
-          $zip = "${{ runner.temp }}/lemonade.zip"
+          $url = $asset.browser_download_url
+          Write-Host "Downloading Lemonade Embeddable: $($asset.name) from $url"
+
+          $zip = "${{ runner.temp }}/lemonade-embeddable.zip"
           Invoke-WebRequest -Uri $url -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath "${{ runner.temp }}/lemonade" -Force
-          $lemond = Get-ChildItem -Recurse "${{ runner.temp }}/lemonade" -Filter "lemond.exe" | Select-Object -First 1
-          if ($lemond) {
-            Copy-Item $lemond.FullName "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe" -Force
-            Write-Host "Lemonade staged: frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
-          } else {
-            throw "lemond.exe not found in Lemonade release"
+          $extractDir = "${{ runner.temp }}/lemonade-embed"
+          Expand-Archive -Path $zip -DestinationPath $extractDir -Force
+
+          # Find lemond.exe and lemonade.exe
+          $lemond = Get-ChildItem -Recurse $extractDir -Filter "lemond.exe" | Select-Object -First 1
+          $lemonade = Get-ChildItem -Recurse $extractDir -Filter "lemonade.exe" | Select-Object -First 1
+          if (-not $lemond) { throw "lemond.exe not found in Lemonade embeddable package" }
+
+          # Stage lemond for Tauri sidecar
+          New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
+          Copy-Item $lemond.FullName "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe" -Force
+          Write-Host "lemond staged: frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
+
+          # Stage lemonade CLI (optional, for backend install)
+          if ($lemonade) {
+            Copy-Item $lemonade.FullName "frontend/src-tauri/binaries/lemonade-x86_64-pc-windows-msvc.exe" -Force
+            Write-Host "lemonade CLI staged: frontend/src-tauri/binaries/lemonade-x86_64-pc-windows-msvc.exe"
           }
-        env:
-          LEMONADE_RELEASE_URL: ${{ secrets.LEMONADE_RELEASE_URL }}
+
+          # Prepare lemonade-data staging directory (working dir for lemond at runtime)
+          $stageData = "${{ runner.temp }}/lemonade-data"
+          New-Item -ItemType Directory -Force -Path $stageData | Out-Null
+
+          # Copy resources/ (defaults.json, server_models.json, backend_versions.json)
+          $resources = Get-ChildItem -Recurse $extractDir -Directory -Filter "resources" | Select-Object -First 1
+          if ($resources) {
+            Copy-Item -Recurse $resources.FullName "$stageData/resources" -Force
+            Write-Host "resources copied to $stageData/resources"
+          }
+
+          # Start lemond briefly to generate config.json and initialize bin/
+          Write-Host "Starting lemond briefly to initialize config.json..."
+          $lemondExe = $lemond.FullName
+          Push-Location $stageData
+          $proc = Start-Process -FilePath $lemondExe -ArgumentList "./", "--port", "18099" -PassThru -NoNewWindow
+          Start-Sleep -Seconds 10
+          if (-not $proc.HasExited) {
+            $proc.Kill()
+            Start-Sleep -Seconds 2
+          }
+          Pop-Location
+
+          # Install FLM backend (NPU runtime) into bin/flm/
+          if ($lemonade) {
+            Write-Host "Installing FLM backend (NPU)..."
+            Push-Location $stageData
+            & $lemonade.FullName backends install flm
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "[WARN] FLM backend install returned exit code $LASTEXITCODE - continuing anyway"
+            }
+            Pop-Location
+            # Verify bin/flm exists
+            if (Test-Path "$stageData/bin") {
+              Write-Host "FLM backend staged in $stageData/bin"
+            } else {
+              Write-Host "[WARN] bin/ directory not created - FLM may need runtime install"
+            }
+          }
+
+          # Store stageData path for ZIP assembly step
+          "LEMONADE_DATA_DIR=$stageData" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Lemonade data dir prepared: $stageData"
 
       # ============================================================
       # 3. Tauri-App bauen (--no-bundle => nur .exe, kein Installer)
@@ -191,7 +235,13 @@ jobs:
       #    Struktur nach Entpacken:
       #      PortableWhisper.exe          (Tauri-Hauptapp, aus app.exe umbenannt)
       #      binaries/whisper-backend.exe
-      #      model/                       (leer - User legt Modell ab)
+      #      binaries/lemond.exe          (Lemonade Sidecar, Phase 3D)
+      #      binaries/lemonade.exe        (Lemonade CLI, optional)
+      #      lemonade-data/               (Lemonade Working Directory)
+      #        config.json                (generiert beim ersten Start)
+      #        resources/                 (defaults, models, backends)
+      #        bin/                       (FLM Backend, NPU-Runtime)
+      #      model/                       (leer - User legt STT-Modell ab)
       #      temp/, logs/                 (App-Daten, lokal im App-Ordner)
       #      README.md, LICENSE, LICENSES.md
       # ============================================================
@@ -208,13 +258,31 @@ jobs:
           Copy-Item frontend/src-tauri/target/release/app.exe "$stage/PortableWhisper.exe"
           Copy-Item frontend/src-tauri/binaries/whisper-backend-x86_64-pc-windows-msvc.exe "$stage/binaries/whisper-backend.exe"
 
-          # Phase 3D: Lemonade-Sidecar (nur falls echte Binary vorhanden, nicht Placeholder)
+          # Phase 3D: Lemonade-Sidecar + Lemonade CLI + lemonade-data
           $lemondSrc = "frontend/src-tauri/binaries/lemond-x86_64-pc-windows-msvc.exe"
           if ((Test-Path $lemondSrc) -and ((Get-Item $lemondSrc).Length -gt 1KB)) {
             Copy-Item $lemondSrc "$stage/binaries/lemond.exe"
-            Write-Host "Lemonade in ZIP aufgenommen"
+            Write-Host "lemond.exe in ZIP aufgenommen"
           } else {
-            Write-Host "[WARN] Lemonade binary is placeholder or missing - not included in ZIP"
+            Write-Host "[WARN] lemond binary is placeholder or missing - not included in ZIP"
+          }
+
+          $lemonadeSrc = "frontend/src-tauri/binaries/lemonade-x86_64-pc-windows-msvc.exe"
+          if ((Test-Path $lemonadeSrc) -and ((Get-Item $lemonadeSrc).Length -gt 1KB)) {
+            Copy-Item $lemonadeSrc "$stage/binaries/lemonade.exe"
+            Write-Host "lemonade.exe in ZIP aufgenommen"
+          } else {
+            Write-Host "[INFO] lemonade CLI not found - skipping (optional)"
+          }
+
+          # lemonade-data directory (config.json, resources/, bin/flm/)
+          $lemDataDir = $env:LEMONADE_DATA_DIR
+          if ($lemDataDir -and (Test-Path $lemDataDir)) {
+            Copy-Item -Recurse $lemDataDir "$stage/lemonade-data" -Force
+            Write-Host "lemonade-data in ZIP aufgenommen: $lemDataDir"
+          } else {
+            Write-Host "[WARN] LEMONADE_DATA_DIR not set or not found - creating empty dir"
+            New-Item -ItemType Directory -Force -Path "$stage/lemonade-data" | Out-Null
           }
 
           Copy-Item README.md $stage/ -ErrorAction SilentlyContinue

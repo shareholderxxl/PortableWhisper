@@ -999,6 +999,18 @@ async def set_correction_setting(payload: dict):
     }
 
 
+@app.get("/settings/correction/model-status")
+async def get_model_status():
+    """Status des Gemma-4-Modell-Downloads (fuer UI-Polling)."""
+    if not llm_correction_enabled:
+        return {"status": "disabled"}
+    if not lemonade.is_available():
+        return {"status": "lemonade_not_running"}
+    if lemonade._model_loaded():
+        return {"status": "ready", "model": lemonade.model}
+    return {"status": "downloading", "model": lemonade.model}
+
+
 # Run the server
 if __name__ == "__main__":
     import uvicorn

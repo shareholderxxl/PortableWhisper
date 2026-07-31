@@ -1012,6 +1012,7 @@ async fn check_lemonade_health() -> bool {
 
 /// Startet den Lemonade-Sidecar, falls nicht bereits aktiv und falls aktiviert.
 /// Gibt true zurück, wenn Lemonade läuft (oder schon lief).
+/// lemond wird mit Working Directory "lemonade-data" und Port 8000 gestartet.
 async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
     // Prüfen, ob Lemonade deaktiviert ist
     if !*state.lemonade_enabled.lock().await {
@@ -1026,7 +1027,8 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
     if state.lemonade_child.lock().await.is_some() {
         *state.lemonade_child.lock().await = None;
     }
-    // Sidecar spawnen
+    // Sidecar spawnen: lemond.exe <DIR> --port 8000
+    // DIR = "lemonade-data" (Working Directory mit config.json, bin/, resources/)
     use tauri_plugin_shell::ShellExt;
     let sidecar = app.shell().sidecar("binaries/lemond");
     let sidecar = match sidecar {
@@ -1036,7 +1038,8 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
             return false;
         }
     };
-    let (rx, child) = match sidecar.spawn() {
+    let cmd = sidecar.args(["lemonade-data", "--port", "8000"]);
+    let (rx, child) = match cmd.spawn() {
         Ok(pair) => pair,
         Err(e) => {
             log::warn!("⚠️ Lemonade-Sidecar konnte nicht gestartet werden: {}", e);
@@ -1046,16 +1049,16 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
     *state.lemonade_child.lock().await = Some(child);
     // Output-Events loggen (optional, wie bei backend)
     let _ = rx;
-    log::info!("🍋 Lemonade-Sidecar gestartet, warte auf Health-Check...");
-    // Health-Check mit Timeout (bis zu 15s)
-    for attempt in 1..=15 {
+    log::info!("🍋 Lemonade-Sidecar gestartet (lemond.exe lemonade-data --port 8000), warte auf Health-Check...");
+    // Health-Check mit Timeout (bis zu 20s — Lemonade braucht beim ersten Start länger)
+    for attempt in 1..=20 {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         if check_lemonade_health().await {
             log::info!("✅ Lemonade ist nach {}s bereit", attempt);
             return true;
         }
     }
-    log::warn!("⚠️ Lemonade nicht innerhalb 15s bereit — LLM-Korrektur deaktiviert");
+    log::warn!("⚠️ Lemonade nicht innerhalb 20s bereit — LLM-Korrektur deaktiviert");
     false
 }
 

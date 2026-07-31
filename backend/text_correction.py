@@ -69,7 +69,11 @@ def get_system_prompt() -> str:
 
 class LemonadeCorrector:
     """Reiner HTTP-Client für Lemonade's OpenAI-kompatible API.
-    Alle Modell-/NPU-Logik liegt in FastFlowLM (Lemonade Sidecar)."""
+    Alle Modell-/NPU-Logik liegt in FastFlowLM (Lemonade Sidecar).
+    
+    Bei erstem correct() ohne geladenes Modell wird automatisch ein
+    Pull-Request an Lemonade gesendet (Modell-Download startet im
+    Hintergrund, dauert 1-3 Minuten)."""
 
     def __init__(self, base_url: str = LEMONADE_URL,
                  model: str = DEFAULT_MODEL):
@@ -77,6 +81,7 @@ class LemonadeCorrector:
         self.model = model
         self._available: bool | None = None
         self._last_check: float = 0.0
+        self._pull_triggered: bool = False
 
     def is_available(self) -> bool:
         """Health-Check via GET /v1/models (mit 5s-Cache, um Latenz zu sparen)."""
@@ -94,12 +99,44 @@ class LemonadeCorrector:
             logger.debug("🍋 Lemonade nicht verfügbar — LLM-Korrektur deaktiviert")
         return self._available
 
+    def _model_loaded(self) -> bool:
+        """Prüft via GET /v1/models ob das aktive Modell heruntergeladen ist."""
+        try:
+            r = requests.get(f"{self.base_url}/models",
+                             timeout=HEALTH_TIMEOUT)
+            models = r.json().get("data", [])
+            return any(m.get("id") == self.model for m in models)
+        except Exception:
+            return False
+
+    def _trigger_model_pull(self):
+        """Startet POST /v1/pull im Hintergrund (fire-and-forget).
+        Wird nur einmal pro Session ausgelöst."""
+        if self._pull_triggered:
+            return
+        self._pull_triggered = True
+        logger.info(f"🍋 Modell-Download gestartet: {self.model} (~1,5 GB, dauert 1-3 Minuten)")
+        try:
+            requests.post(
+                f"{self.base_url}/pull",
+                json={"model_name": self.model},
+                timeout=1,  # Nicht auf Antwort warten
+            )
+        except Exception:
+            pass  # Pull läuft im Hintergrund, Fehler ignorieren
+
     def correct(self, text: str) -> str:
         """POST /v1/chat/completions mit System-Prompt + User-Text.
-        Bei JEDEM Fehler -> Originaltext (Fallback-Ebene 2: keine Korrektur)."""
+        Bei JEDEM Fehler -> Originaltext (Fallback-Ebene 2: keine Korrektur).
+        Bei nicht geladenem Modell: Pull starten, Rohtext zurückgeben."""
         if not text or not text.strip():
             return text
         if not self.is_available():
+            return text
+
+        # Prüfen ob Modell geladen ist — falls nicht, Pull starten
+        if not self._model_loaded():
+            self._trigger_model_pull()
             return text
 
         prompt = (system_prompt or DEFAULT_SYSTEM_PROMPT).strip()

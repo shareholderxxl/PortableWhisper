@@ -319,6 +319,11 @@
             50% { opacity: 0.7; }
         }
 
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /* Select Dropdown */
         select {
             padding: 8px 32px 8px 12px;
@@ -849,7 +854,7 @@
                     </div>
                     <div class="config-row-right">
                         <span id="correctionStatusBadge" class="status-indicator" style="padding:4px 10px;font-size:12px;background:rgba(102,126,234,0.15);color:#667eea;">…</span>
-                        <div class="toggle-switch active" id="correctionToggle" onclick="toggleLlmCorrection()"></div>
+                        <div class="toggle-switch" id="correctionToggle" onclick="toggleLlmCorrection()"></div>
                     </div>
                 </div>
 
@@ -1400,23 +1405,100 @@
             }
         }
 
+        // Phase 3D: Modell-Download-Status Polling (wenn Toggle aktiviert wird)
+        let modelStatusPollInterval = null;
+
         async function toggleLlmCorrection() {
             const toggle = document.getElementById('correctionToggle');
-            const enabled = !toggle.classList.contains('active');
-            if (enabled) {
+            const enabling = !toggle.classList.contains('active');
+            if (enabling) {
                 toggle.classList.add('active');
             } else {
                 toggle.classList.remove('active');
+                // Polling stoppen wenn deaktiviert
+                if (modelStatusPollInterval) {
+                    clearInterval(modelStatusPollInterval);
+                    modelStatusPollInterval = null;
+                }
             }
             try {
                 await fetch(`${BACKEND_URL}/settings/correction`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled })
+                    body: JSON.stringify({ enabled: enabling })
                 });
+                // Wenn aktiviert: Modell-Status pruefen und ggf. Polling starten
+                if (enabling) {
+                    startModelStatusPolling();
+                }
             } catch (error) {
                 console.error('❌ Error setting LLM correction:', error);
             }
+        }
+
+        async function startModelStatusPolling() {
+            // Sofort einmal pruefen
+            await checkModelStatus();
+            // Dann alle 3s pollen bis ready oder disabled
+            if (modelStatusPollInterval) {
+                clearInterval(modelStatusPollInterval);
+            }
+            modelStatusPollInterval = setInterval(async () => {
+                const done = await checkModelStatus();
+                if (done) {
+                    clearInterval(modelStatusPollInterval);
+                    modelStatusPollInterval = null;
+                }
+            }, 3000);
+        }
+
+        async function checkModelStatus() {
+            const badge = document.getElementById('correctionStatusBadge');
+            try {
+                const resp = await fetch(`${BACKEND_URL}/settings/correction/model-status`);
+                const data = await resp.json();
+                if (data.status === 'ready') {
+                    badge.textContent = 'Bereit';
+                    badge.style.background = 'rgba(52,211,153,0.15)';
+                    badge.style.color = '#34d399';
+                    showToast('Gemma 4 Modell ist jetzt einsatzbereit!', 'success');
+                    return true;
+                } else if (data.status === 'downloading') {
+                    badge.textContent = 'Laedt Modell...';
+                    badge.style.background = 'rgba(245,158,11,0.15)';
+                    badge.style.color = '#f59e0b';
+                    return false;
+                } else if (data.status === 'disabled') {
+                    badge.textContent = 'Deaktiviert';
+                    badge.style.background = 'rgba(107,114,128,0.15)';
+                    badge.style.color = '#6b7280';
+                    return true;
+                } else if (data.status === 'lemonade_not_running') {
+                    badge.textContent = 'Nicht verfuegbar';
+                    badge.style.background = 'rgba(239,68,68,0.15)';
+                    badge.style.color = '#ef4444';
+                    return true;
+                }
+            } catch (e) {
+                console.error('Model status check failed:', e);
+            }
+            return false;
+        }
+
+        function showToast(message, type) {
+            // Einfache Toast-Notification
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;animation:fadeIn 0.3s;';
+            if (type === 'success') {
+                toast.style.background = 'rgba(52,211,153,0.9)';
+                toast.style.color = '#fff';
+            } else {
+                toast.style.background = 'rgba(102,126,234,0.9)';
+                toast.style.color = '#fff';
+            }
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
         }
 
         async function loadLlmCorrectionSetting() {
@@ -1438,8 +1520,8 @@
                 if (modelSelect && data.model) {
                     modelSelect.value = data.model;
                 }
-                updateCorrectionStatusIndicator(data.status, data.missing_files, data.quant);
-                updateProviderIndicator(data.provider, data.health, data.model);
+                // Modell-Status pruefen (ohne Polling zu starten)
+                await checkModelStatus();
             } catch (e) {
                 console.error('Could not load LLM correction setting:', e);
             }
@@ -1484,7 +1566,8 @@
                     body: JSON.stringify({ enabled, prompt })
                 });
                 const data = await resp.json();
-                updateCorrectionStatusIndicator(data.status);
+                // Modell-Status nach Speichern aktualisieren
+                await checkModelStatus();
                 if (hint) {
                     hint.textContent = '✓ Gespeichert';
                     setTimeout(() => { if (hint) hint.textContent = ''; }, 2000);
