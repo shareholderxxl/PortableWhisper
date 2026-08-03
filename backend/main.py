@@ -68,7 +68,7 @@ is_model_loading = False
 model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
-llm_correction_enabled = True  # Phase 3D: LLM-gestuetzte Korrektur (Gemma 4 via Lemonade/NPU, Fallback auf Rohtext)
+llm_correction_enabled = False  # Phase 3D: LLM-gestuetzte Korrektur (Gemma 4 via Lemonade/NPU, Fallback auf Rohtext). Default OFF — User aktiviert explizit im UI (Modell-Download on-demand).
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -985,6 +985,16 @@ async def set_correction_setting(payload: dict):
         save_config(cfg)
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht gespeichert werden: {e}")
+
+    # Phase 3D: Modell-Download sofort starten, wenn aktiviert und Lemonade
+    # laeuft, aber das Modell noch nicht geladen ist (on-demand Download).
+    if enabled:
+        try:
+            if lemonade.is_available() and not lemonade._model_loaded():
+                lemonade._trigger_model_pull()
+                logger.info("🍋 Modell-Download beim Aktivieren gestartet")
+        except Exception as e:
+            logger.warning(f"⚠️ Pull-Trigger fehlgeschlagen: {e}")
 
     lemonade_healthy = lemonade.is_available()
     logger.info(f"✨ LLM correction {'enabled' if llm_correction_enabled else 'disabled'}, "

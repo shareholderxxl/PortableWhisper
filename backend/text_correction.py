@@ -81,7 +81,7 @@ class LemonadeCorrector:
         self.model = model
         self._available: bool | None = None
         self._last_check: float = 0.0
-        self._pull_triggered: bool = False
+        self._pull_triggered: str | None = None  # Modell-ID, fuer die Pull lief
 
     def is_available(self) -> bool:
         """Health-Check via GET /v1/models (mit 5s-Cache, um Latenz zu sparen)."""
@@ -111,10 +111,10 @@ class LemonadeCorrector:
 
     def _trigger_model_pull(self):
         """Startet POST /v1/pull im Hintergrund (fire-and-forget).
-        Wird nur einmal pro Session ausgelöst."""
-        if self._pull_triggered:
+        Wird pro Modell-ID nur einmal ausgeloest (bei Modellwechsel erneut)."""
+        if self._pull_triggered == self.model:
             return
-        self._pull_triggered = True
+        self._pull_triggered = self.model
         logger.info(f"🍋 Modell-Download gestartet: {self.model} (~1,5 GB, dauert 1-3 Minuten)")
         try:
             requests.post(

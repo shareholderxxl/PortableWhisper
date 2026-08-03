@@ -1427,6 +1427,20 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: enabling })
                 });
+                // Rust-State synchron halten: ohne invoke('set_lemonade_enabled')
+                // startet/stoppt der Lemonade-Sidecar nie bei Toggle-Wechsel.
+                // Nach Aktivierung lemond neu starten, damit der Sidecar wirklich laeuft.
+                if (window.__TAURI_INTERNALS__) {
+                    const { invoke } = window.__TAURI_INTERNALS__;
+                    try {
+                        await invoke('set_lemonade_enabled', { enabled: enabling });
+                        if (enabling) {
+                            await invoke('restart_lemonade');
+                        }
+                    } catch (e) {
+                        console.error('❌ Error syncing Lemonade with Tauri:', e);
+                    }
+                }
                 // Wenn aktiviert: Modell-Status pruefen und ggf. Polling starten
                 if (enabling) {
                     startModelStatusPolling();
@@ -1522,6 +1536,15 @@
                 }
                 // Modell-Status pruefen (ohne Polling zu starten)
                 await checkModelStatus();
+                // Provider-Badge aus Rust-State aktualisieren (Phase 3D)
+                if (window.__TAURI_INTERNALS__) {
+                    try {
+                        const provider = await window.__TAURI_INTERNALS__.invoke('get_llm_provider_status');
+                        updateProviderIndicator(provider.provider, provider.health, provider.model);
+                    } catch (e) {
+                        console.error('❌ Error getting LLM provider status:', e);
+                    }
+                }
             } catch (e) {
                 console.error('Could not load LLM correction setting:', e);
             }
@@ -1534,6 +1557,15 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ model })
                 });
+                // Rust-State synchron halten (Sidecar-Pull nutzt den Rust-State
+                // nicht, aber die Settings-Persistenz in Tauri schon)
+                if (window.__TAURI_INTERNALS__) {
+                    try {
+                        await window.__TAURI_INTERNALS__.invoke('set_lemonade_model', { model });
+                    } catch (e) {
+                        console.error('❌ Error syncing Lemonade model with Tauri:', e);
+                    }
+                }
                 console.log('🍋 Lemonade-Modell gesetzt:', model);
             } catch (error) {
                 console.error('❌ Error setting Lemonade model:', error);
@@ -1585,7 +1617,7 @@
                 loaded:    ['Geladen',  'rgba(52,211,153,0.15)',  '#34d399'],
                 loading:   ['Lädt...',  'rgba(251,191,36,0.15)',   '#fbbf24'],
                 available: ['Bereit',   'rgba(102,126,234,0.15)',  '#667eea'],
-                missing:   ['Fehlt',    'rgba(239,68,68,0.15)',    '#ef4444'],
+                missing:   ['Nicht erreichbar', 'rgba(239,68,68,0.15)', '#ef4444'],
                 error:     ['Fehler',   'rgba(239,68,68,0.15)',    '#ef4444'],
                 disabled:  ['Aus',      'rgba(160,160,160,0.15)',  '#a0a0a0'],
             };

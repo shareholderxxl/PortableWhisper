@@ -152,16 +152,18 @@ jobs:
           # talks to the running lemond server, so backends install requires
           # lemond to be up. (See embeddable docs: "Start lemond to download
           # backends to ./bin/" -> lemond.exe ./ then lemonade backends install)
+          # NOTE: use --port 8000 so the generated config.json matches the port
+          # the app uses at runtime (lib.rs spawns lemond with --port 8000).
           Write-Host "Starting lemond (stays up for backend install)..."
           $lemondExe = $lemond.FullName
           Push-Location $stageData
-          $proc = Start-Process -FilePath $lemondExe -ArgumentList "./", "--port", "18099" -PassThru -NoNewWindow
+          $proc = Start-Process -FilePath $lemondExe -ArgumentList "./", "--port", "8000" -PassThru -NoNewWindow
           $ready = $false
           for ($i = 0; $i -lt 60; $i++) {
             Start-Sleep -Seconds 1
             if ($proc.HasExited) { break }
             try {
-              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18099/v1/system-info" -TimeoutSec 2 -UseBasicParsing
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/v1/system-info" -TimeoutSec 2 -UseBasicParsing
               if ($resp.StatusCode -eq 200) { $ready = $true; break }
             } catch { }
           }

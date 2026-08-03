@@ -1039,7 +1039,7 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
         }
     };
     let cmd = sidecar.args(["lemonade-data", "--port", "8000"]);
-    let (rx, child) = match cmd.spawn() {
+    let (mut rx, child) = match cmd.spawn() {
         Ok(pair) => pair,
         Err(e) => {
             log::warn!("⚠️ Lemonade-Sidecar konnte nicht gestartet werden: {}", e);
@@ -1047,8 +1047,28 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
         }
     };
     *state.lemonade_child.lock().await = Some(child);
-    // Output-Events loggen (optional, wie bei backend)
-    let _ = rx;
+    // Output-Events loggen: lemond-Ausgabe landet im App-Log, damit Fehler
+    // (Crash, Port-Konflikt, NPU-Probleme) diagnostizierbar sind.
+    use tauri_plugin_shell::process::CommandEvent;
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) => {
+                    let text = String::from_utf8_lossy(&line);
+                    log::info!("🍋 lemond: {}", text.trim_end());
+                }
+                CommandEvent::Stderr(line) => {
+                    let text = String::from_utf8_lossy(&line);
+                    log::warn!("🍋 lemond stderr: {}", text.trim_end());
+                }
+                CommandEvent::Terminated(payload) => {
+                    log::warn!("🍋 lemond terminated: code={:?}, signal={:?}",
+                        payload.code, payload.signal);
+                }
+                _ => {}
+            }
+        }
+    });
     log::info!("🍋 Lemonade-Sidecar gestartet (lemond.exe lemonade-data --port 8000), warte auf Health-Check...");
     // Health-Check mit Timeout (bis zu 20s — Lemonade braucht beim ersten Start länger)
     for attempt in 1..=20 {
@@ -1207,6 +1227,31 @@ pub fn run() {
             tauri::async_runtime::block_on(async {
                 app_state.apply_settings(settings.clone()).await;
             });
+
+            // Phase 3D: Backend-config.json (neben der exe) als Source of Truth
+            // fuer Lemonade-Settings. Rust-Settings und Backend-Config laufen
+            // sonst auseinander -> der Sidecar wuerde mit falschem enabled/model
+            // starten. Hier ueberschreiben wir die Rust-Werte mit der Backend-Config.
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(app_dir) = exe.parent() {
+                    let cfg_path = app_dir.join("config.json");
+                    if let Ok(content) = fs::read_to_string(&cfg_path) {
+                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) {
+                            if let Some(corr) = cfg.get("correction") {
+                                if let Some(enabled) = corr.get("enabled").and_then(|v| v.as_bool()) {
+                                    *app_state.lemonade_enabled.lock().await = enabled;
+                                }
+                                if let Some(model) = corr.get("model").and_then(|v| v.as_str()) {
+                                    *app_state.lemonade_model.lock().await = model.to_string();
+                                }
+                                log::info!("🍋 Backend-Config: lemonade_enabled={}, model={}",
+                                    *app_state.lemonade_enabled.lock().await,
+                                    *app_state.lemonade_model.lock().await);
+                            }
+                        }
+                    }
+                }
+            }
 
             log::info!("📋 Loaded settings: model={}, device={}, language={}",
                 settings.selected_model, settings.selected_device, settings.selected_language);
