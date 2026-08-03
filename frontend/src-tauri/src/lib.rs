@@ -1232,26 +1232,28 @@ pub fn run() {
             // fuer Lemonade-Settings. Rust-Settings und Backend-Config laufen
             // sonst auseinander -> der Sidecar wuerde mit falschem enabled/model
             // starten. Hier ueberschreiben wir die Rust-Werte mit der Backend-Config.
-            if let Ok(exe) = std::env::current_exe() {
-                if let Some(app_dir) = exe.parent() {
-                    let cfg_path = app_dir.join("config.json");
-                    if let Ok(content) = fs::read_to_string(&cfg_path) {
-                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) {
-                            if let Some(corr) = cfg.get("correction") {
-                                if let Some(enabled) = corr.get("enabled").and_then(|v| v.as_bool()) {
-                                    *app_state.lemonade_enabled.lock().await = enabled;
+            tauri::async_runtime::block_on(async {
+                if let Ok(exe) = std::env::current_exe() {
+                    if let Some(app_dir) = exe.parent() {
+                        let cfg_path = app_dir.join("config.json");
+                        if let Ok(content) = fs::read_to_string(&cfg_path) {
+                            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Some(corr) = cfg.get("correction") {
+                                    if let Some(enabled) = corr.get("enabled").and_then(|v| v.as_bool()) {
+                                        *app_state.lemonade_enabled.lock().await = enabled;
+                                    }
+                                    if let Some(model) = corr.get("model").and_then(|v| v.as_str()) {
+                                        *app_state.lemonade_model.lock().await = model.to_string();
+                                    }
+                                    log::info!("🍋 Backend-Config: lemonade_enabled={}, model={}",
+                                        *app_state.lemonade_enabled.lock().await,
+                                        *app_state.lemonade_model.lock().await);
                                 }
-                                if let Some(model) = corr.get("model").and_then(|v| v.as_str()) {
-                                    *app_state.lemonade_model.lock().await = model.to_string();
-                                }
-                                log::info!("🍋 Backend-Config: lemonade_enabled={}, model={}",
-                                    *app_state.lemonade_enabled.lock().await,
-                                    *app_state.lemonade_model.lock().await);
                             }
                         }
                     }
                 }
-            }
+            });
 
             log::info!("📋 Loaded settings: model={}, device={}, language={}",
                 settings.selected_model, settings.selected_device, settings.selected_language);
