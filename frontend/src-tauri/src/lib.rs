@@ -1028,7 +1028,24 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
         *state.lemonade_child.lock().await = None;
     }
     // Sidecar spawnen: lemond.exe <DIR> --port 8000
-    // DIR = "lemonade-data" (Working Directory mit config.json, bin/, resources/)
+    // DIR = "lemonade-data" (Working Directory mit config.json, bin/, resources/).
+    // Absolut aufloesen (neben der exe), da das CWD des Sidecars nicht garantiert
+    // das exe-Verzeichnis ist.
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    let data_dir_arg = match &exe_dir {
+        Some(dir) => {
+            let full = dir.join("lemonade-data");
+            if full.exists() {
+                full.to_string_lossy().to_string()
+            } else {
+                log::warn!("⚠️ lemonade-data nicht gefunden unter {:?} - versuche relativ", full);
+                "lemonade-data".to_string()
+            }
+        }
+        None => "lemonade-data".to_string(),
+    };
     use tauri_plugin_shell::ShellExt;
     let sidecar = app.shell().sidecar("binaries/lemond");
     let sidecar = match sidecar {
@@ -1038,7 +1055,7 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
             return false;
         }
     };
-    let cmd = sidecar.args(["lemonade-data", "--port", "8000"]);
+    let cmd = sidecar.args([data_dir_arg.as_str(), "--port", "8000"]);
     let (mut rx, child) = match cmd.spawn() {
         Ok(pair) => pair,
         Err(e) => {
@@ -1069,7 +1086,7 @@ async fn ensure_lemonade_running(app: &AppHandle, state: &AppState) -> bool {
             }
         }
     });
-    log::info!("🍋 Lemonade-Sidecar gestartet (lemond.exe lemonade-data --port 8000), warte auf Health-Check...");
+    log::info!("🍋 Lemonade-Sidecar gestartet (lemond.exe {} --port 8000), warte auf Health-Check...", data_dir_arg);
     // Health-Check mit Timeout (bis zu 20s — Lemonade braucht beim ersten Start länger)
     for attempt in 1..=20 {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -1189,12 +1206,25 @@ pub fn run() {
         .setup(|app| {
             use tauri::WebviewWindowBuilder;
 
-            // Logging
+            // Logging: Stdout + LogDir (AppData) + Folder neben der exe.
+            // Der exe-Ordner-Log macht Rust-Sidecar-Logs (lemond-Ausgabe) fuer
+            // den User direkt sichtbar, ohne in AppData suchen zu muessen.
+            let exe_log_dir = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("logs");
+            let _ = std::fs::create_dir_all(&exe_log_dir);
+
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()
                     .level(log::LevelFilter::Info)
                     .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
                     .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: Some("app".to_string()) }))
+                    .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                        path: exe_log_dir,
+                        file_name: Some("rust".to_string()),
+                    }))
                     .build(),
             )?;
 
