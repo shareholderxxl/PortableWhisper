@@ -1080,28 +1080,28 @@
             <h1 class="section-title" data-i18n="licenses.title">Lizenzen</h1>
 
             <div class="config-section">
-                <h3 class="config-section-title">PortableWhisper</h3>
+                <h3 class="config-section-title" data-i18n="licenses.pw">PortableWhisper</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
-                    <p><strong>Lizenz:</strong> MIT License</p>
-                    <p><strong>Urheber:</strong> Copyright (c) 2024 ShareholderXXL</p>
-                    <p><strong>Version:</strong> 2.05</p>
-                    <p><strong>Fork attribution:</strong> Basiert auf dem Originalprojekt von Bader Aljabri.</p>
+                    <p><strong data-i18n="lic.pw.license">Lizenz:</strong> MIT License</p>
+                    <p><strong data-i18n="lic.pw.copyright">Urheber:</strong> Copyright (c) 2024 ShareholderXXL</p>
+                    <p><strong data-i18n="lic.pw.version">Version:</strong> 2.05</p>
+                    <p><strong data-i18n="lic.pw.fork">Fork attribution:</strong> <span data-i18n="lic.pw.forkDesc">Basiert auf dem Originalprojekt von Bader Aljabri.</span></p>
                     <p><strong>GitHub:</strong> <a href="https://github.com/shareholderxxl/PortableWhisper" onclick="openExternalLink(event, 'https://github.com/shareholderxxl/PortableWhisper')">github.com/shareholderxxl/PortableWhisper</a></p>
-                    <p><strong>Vollständiger Lizenztext:</strong> Siehe <code>LICENSE</code> Datei im App-Ordner.</p>
+                    <p><strong data-i18n="lic.pw.full">Vollständiger Lizenztext:</strong> <span data-i18n="lic.pw.fullDesc">Siehe <code>LICENSE</code> Datei im App-Ordner.</span></p>
                 </div>
             </div>
 
             <div class="config-section">
-                <h3 class="config-section-title">NVIDIA Parakeet TDT 0.6B v3 Modell</h3>
+                <h3 class="config-section-title" data-i18n="licenses.parakeet">NVIDIA Parakeet TDT 0.6B v3 Modell</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
                     <p><strong>Source:</strong> NVIDIA/parakeet-tdt-0.6b-v3 (ONNX int4)</p>
-                    <p><strong>Lizenz:</strong> CC-BY-4.0</p>
-                    <p><strong>Modell-Download:</strong> <a href="https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4" onclick="openExternalLink(event, 'https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4')">huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4</a></p>
+                    <p><strong data-i18n="lic.parakeet.license">Lizenz:</strong> CC-BY-4.0</p>
+                    <p><strong data-i18n="lic.parakeet.download">Modell-Download:</strong> <a href="https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4" onclick="openExternalLink(event, 'https://huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4')">huggingface.co/efederici/parakeet-tdt-0.6b-v3-onnx-int4</a></p>
                 </div>
             </div>
 
             <div class="config-section">
-                <h3 class="config-section-title">Abhängigkeiten</h3>
+                <h3 class="config-section-title" data-i18n="licenses.deps">Abhängigkeiten</h3>
                 <div class="config-row-description" style="line-height: 1.7;">
                     <p><strong>onnx-asr:</strong> MIT License &mdash; <a href="https://github.com/istupakov/onnx-asr" onclick="openExternalLink(event, 'https://github.com/istupakov/onnx-asr')">GitHub</a></p>
                     <p><strong>ONNX Runtime:</strong> MIT License &mdash; <a href="https://github.com/microsoft/onnxruntime" onclick="openExternalLink(event, 'https://github.com/microsoft/onnxruntime')">GitHub</a></p>
@@ -1131,8 +1131,8 @@
             <h3 id="gpuModalTitle" data-i18n="gpu.title">🚀 GPU erkannt!</h3>
             <p data-i18n="gpu.desc">Ihr System hat eine NVIDIA-GPU. GPU-Beschleunigungsbibliotheken (~600MB) für 5-10x schnellere Transkription herunterladen?</p>
             <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
-                <strong data-i18n="gpu.with">Mit GPU:</strong> 5s audio → 0.5-2s transcription<br>
-                <strong data-i18n="gpu.without">Ohne GPU:</strong> 5s audio → 5-15s transcription
+                <strong data-i18n="gpu.with">Mit GPU:</strong> <span data-i18n="gpu.withVal">5s audio → 0.5-2s transcription</span><br>
+                <strong data-i18n="gpu.without">Ohne GPU:</strong> <span data-i18n="gpu.withoutVal">5s audio → 5-15s transcription</span>
             </p>
             <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;" data-i18n="gpu.later">
                 Sie können dies später unter Konfiguration → Verarbeitungsgerät nachholen.
@@ -1251,6 +1251,22 @@
                 'missingModel.required': 'Erforderliche Dateien in <code>model/</code>:',
                 'missingModel.note': '<strong>Hinweis:</strong> Sie können auch das int8-Modell von <code>istupakov/parakeet-tdt-0.6b-v3-onnx</code> verwenden. Details siehe <strong>Lizenzen</strong>-Seite und <code>README.md</code>.',
                 'missingModel.close': 'Schließen',
+                'lic.pw.license': 'Lizenz:',
+                'lic.pw.copyright': 'Urheber:',
+                'lic.pw.version': 'Version:',
+                'lic.pw.fork': 'Fork attribution:',
+                'lic.pw.forkDesc': 'Basiert auf dem Originalprojekt von Bader Aljabri.',
+                'lic.pw.full': 'Vollständiger Lizenztext:',
+                'lic.pw.fullDesc': 'Siehe <code>LICENSE</code> Datei im App-Ordner.',
+                'lic.parakeet.license': 'Lizenz:',
+                'lic.parakeet.download': 'Modell-Download:',
+                'gpu.withVal': '5s audio → 0.5-2s transcription',
+                'gpu.withoutVal': '5s audio → 5-15s transcription',
+                'gpu.alertNoGpu': 'Auf diesem System wurde keine NVIDIA-GPU erkannt.',
+                'gpu.alertAlreadyInstalled': 'GPU-Bibliotheken sind bereits installiert!',
+                'gpu.alertDialogFailed': 'GPU-Setup-Dialog konnte nicht angezeigt werden. Konsole für Fehler prüfen.',
+                'gpu.alertBackendFailed': 'Backend-Verbindung fehlgeschlagen. Stellen Sie sicher, dass die App läuft.',
+                'gpu.alertRestart': 'GPU-Bibliotheken erfolgreich installiert!\n\n⚠️ WICHTIG: Sie müssen die App schließen und neu starten, damit GPU-Beschleunigung funktioniert.\n\nApp jetzt schließen und neu öffnen.',
             },
             en: {
                 'nav.settings': 'Settings',
@@ -1348,6 +1364,22 @@
                 'missingModel.required': 'Required files in <code>model/</code>:',
                 'missingModel.note': '<strong>Note:</strong> You can also use the int8 model from <code>istupakov/parakeet-tdt-0.6b-v3-onnx</code>. See the <strong>Licenses</strong> page and <code>README.md</code>.',
                 'missingModel.close': 'Close',
+                'lic.pw.license': 'License:',
+                'lic.pw.copyright': 'Copyright:',
+                'lic.pw.version': 'Version:',
+                'lic.pw.fork': 'Fork attribution:',
+                'lic.pw.forkDesc': 'Based on the original project by Bader Aljabri.',
+                'lic.pw.full': 'Full license text:',
+                'lic.pw.fullDesc': 'See the <code>LICENSE</code> file in the app folder.',
+                'lic.parakeet.license': 'License:',
+                'lic.parakeet.download': 'Model download:',
+                'gpu.withVal': '5s audio → 0.5-2s transcription',
+                'gpu.withoutVal': '5s audio → 5-15s transcription',
+                'gpu.alertNoGpu': 'No NVIDIA GPU detected on this system.',
+                'gpu.alertAlreadyInstalled': 'GPU libraries are already installed!',
+                'gpu.alertDialogFailed': 'Failed to show GPU setup dialog. Check console for errors.',
+                'gpu.alertBackendFailed': 'Backend connection failed. Make sure the app is running.',
+                'gpu.alertRestart': 'GPU libraries installed successfully!\n\n⚠️ IMPORTANT: You must close and restart the app for GPU acceleration to work.\n\nClose the app now and reopen it.',
             }
         };
 
@@ -2460,14 +2492,14 @@ hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/</pre>
                     const data = await response.json();
 
                     if (!data.gpu_available) {
-                        alert('No NVIDIA GPU detected on this system.');
+                        alert(t('gpu.alertNoGpu'));
                     } else if (data.libs_installed) {
-                        alert('GPU libraries are already installed!');
+                        alert(t('gpu.alertAlreadyInstalled'));
                     } else {
-                        alert('Failed to show GPU setup dialog. Check console for errors.');
+                        alert(t('gpu.alertDialogFailed'));
                     }
                 } catch (error) {
-                    alert('Backend connection failed. Make sure the app is running.');
+                    alert(t('gpu.alertBackendFailed'));
                 }
             }
         }
@@ -2512,7 +2544,7 @@ hf download efederici/parakeet-tdt-0.6b-v3-onnx-int4 --local-dir model/</pre>
 
                     setTimeout(() => {
                         modal.classList.add('hidden');
-                        alert(t('gpu.success') + '\n\n⚠️ IMPORTANT: You must close and restart the app for GPU acceleration to work.\n\nClose the app now and reopen it.');
+                        alert(t('gpu.alertRestart'));
                     }, 2000);
                 } else {
                     progressBar.style.width = '0%';
