@@ -324,29 +324,10 @@ async fn cmd_start_recording(app: AppHandle, state: State<'_, AppState>) -> Resu
     let microphone = state.selected_microphone.lock().await.clone();
     let language = state.selected_language.lock().await.clone();
 
-    // Position window at top center and show
-    if let Some(win) = app.get_webview_window("recording") {
-        // Get primary monitor to calculate center position
-        if let Some(monitor) = win.current_monitor().map_err(|e| e.to_string())? {
-            let screen_size = monitor.size();
-            let window_size = win.outer_size().map_err(|e| e.to_string())?;
-
-            // Calculate top-right position (20px from edges)
-            let x = (screen_size.width as i32 - window_size.width as i32) - 20;
-            let y = 20;
-
-            win.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-        }
-
-        win.show().map_err(|e| e.to_string())?;
-
-        // Play start sound
-        let _ = win.eval("playStartSound()");
-
-        log::info!("✅ Window shown at top center");
-    }
-
-    // Call backend /start
+    // Call backend /start FIRST (fire-and-forget): das Mikrofon oeffnet
+    // parallel zum Fenster-Rendering. Ein verstecktes WebView2-Fenster ist
+    // gedrosselt und braucht beim Anzeigen Zeit - das darf die
+    // Mikrofon-Aktivierung nicht blockieren.
     let client = reqwest::Client::new();
     tokio::spawn(async move {
         // Use None for auto-detect, otherwise use the selected language
@@ -377,6 +358,28 @@ async fn cmd_start_recording(app: AppHandle, state: State<'_, AppState>) -> Resu
             Err(e) => log::error!("❌ Request failed: {}", e),
         }
     });
+
+    // Position window at top center and show
+    if let Some(win) = app.get_webview_window("recording") {
+        // Get primary monitor to calculate center position
+        if let Some(monitor) = win.current_monitor().map_err(|e| e.to_string())? {
+            let screen_size = monitor.size();
+            let window_size = win.outer_size().map_err(|e| e.to_string())?;
+
+            // Calculate top-right position (20px from edges)
+            let x = (screen_size.width as i32 - window_size.width as i32) - 20;
+            let y = 20;
+
+            win.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+        }
+
+        win.show().map_err(|e| e.to_string())?;
+
+        // Play start sound
+        let _ = win.eval("playStartSound()");
+
+        log::info!("✅ Window shown at top center");
+    }
 
     Ok(())
 }

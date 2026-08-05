@@ -544,7 +544,9 @@ async def start_recording(request: StartRequest):
                 "message": "Mikrofon nicht verfügbar. Bitte prüfen Sie die Windows-Mikrofoneinstellungen."
             }
 
-        await asyncio.sleep(0.1)
+        # Kurzer Puffer, damit die ersten Audio-Chunks in der Queue landen
+        # (vorher 0.1s - reduziert fuer schnellere Mikrofon-Aktivierung nach F9)
+        await asyncio.sleep(0.02)
         is_recording = True
 
         # Modell parallel im Hintergrund laden (Geschwindigkeits-Trick!)
