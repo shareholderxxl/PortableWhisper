@@ -4,6 +4,8 @@ Handles microphone and system audio recording using sounddevice (WASAPI)
 """
 
 import logging
+import time
+from collections import deque
 import numpy as np
 import sounddevice as sd
 from typing import List, Dict, Optional, Callable
@@ -43,6 +45,9 @@ class AudioCapture:
         self._is_recording = False
         self.audio_queue = queue.Queue()
         self.stream = None
+        # VAD-Support: Rolling-Ringpuffer (letzte ~10s) mit (timestamp, rms)
+        self._level_history = deque(maxlen=500)  # 50 Chunks/s * 10s
+        self._start_time = 0.0
     
     def is_recording(self) -> bool:
         """Check if currently recording"""
@@ -104,6 +109,12 @@ class AudioCapture:
         try:
             # Put audio data in queue
             self.audio_queue.put(indata.copy())
+            # VAD: RMS-Level pro Chunk tracken (fuer Auto-Stopp bei Stille)
+            try:
+                rms = float(np.sqrt(np.mean(np.asarray(indata, dtype=np.float32) ** 2)))
+                self._level_history.append((time.time(), rms))
+            except Exception:
+                pass
             # Log occasionally to confirm audio is flowing
             if self.audio_queue.qsize() % 10 == 0:
                 logger.info(f"📊 Audio queue size: {self.audio_queue.qsize()}")
@@ -135,6 +146,8 @@ class AudioCapture:
             
             self.stream.start()
             self._is_recording = True
+            self._level_history.clear()
+            self._start_time = time.time()
             logger.info("✅ Recording started")
             return True
             
@@ -151,6 +164,25 @@ class AudioCapture:
             except queue.Empty:
                 break
         logger.info("✓ Audio queue cleared")
+
+    def get_silence_seconds(self, threshold: float = 0.01) -> float:
+        """Sekunden seit dem letzten Audio-Chunk ueber der RMS-Schwelle.
+
+        Dient dem Auto-Stopp bei Stille (VAD, energiebasiert).
+        - 0.0 wenn nicht aufgenommen oder keine Level-Daten
+        - Wurde nie gesprochen: Zeit seit Aufnahmebeginn
+        """
+        if not self._is_recording or not self._level_history:
+            return 0.0
+        now = time.time()
+        last_speech = None
+        for ts, rms in reversed(self._level_history):
+            if rms >= threshold:
+                last_speech = ts
+                break
+        if last_speech is None:
+            return now - self._start_time
+        return now - last_speech
     
     def drain_available(self) -> Optional[np.ndarray]:
         """

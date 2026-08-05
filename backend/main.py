@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from audio_capture import AudioCapture
 from parakeet_engine import ParakeetEngine
 import gpu_manager
-from text_cleanup import clean_text
+from text_cleanup import clean_text, apply_dictionary
 from text_correction import (
     correct_text,          # Phase 3D: LLM-Korrektur via Lemonade/Gemma 4
     lemonade,              # Singleton (Health-Status)
@@ -69,6 +69,12 @@ model_loading_info = {"model": "", "status": ""}
 current_language: Optional[str] = None  # Store language from start request
 text_cleanup_enabled = True  # Phase 3A: heuristic text cleanup (filler words, duplicates)
 llm_correction_enabled = False  # Phase 3D: LLM-gestuetzte Korrektur (Gemma 4 via Lemonade/NPU, Fallback auf Rohtext). Default OFF — User aktiviert explizit im UI (Modell-Download on-demand).
+
+# Phase 3E: Auto-Stopp bei Stille (VAD) + Wörterbuch (Wortersetzungen)
+auto_stop_enabled = True         # Default AN (konfigurierbar); nur im Toggle-Modus wirksam (Frontend)
+auto_stop_silence = 2.5          # Sekunden Stille bis zum automatischen Stopp
+dictionary_enabled = False       # Wörterbuch-Ein/Aus
+dictionary_rules: list = []      # [{"from": "...", "to": "..."}, ...]
 
 # Model pre-loading (Pre-Load + Batch approach)
 model_load_task: Optional[asyncio.Task] = None
@@ -176,6 +182,28 @@ async def lifespan(app: FastAPI):
                     f"(Lemonade/Gemma 4 via NPU)")
     except Exception as e:
         logger.warning(f"⚠️ Korrektur-Config konnte nicht geladen werden: {e}")
+
+    # Phase 3E: Auto-Stopp + Wörterbuch-Settings aus config.json laden
+    try:
+        cfg = load_config()
+        if isinstance(cfg, dict):
+            auto = cfg.get("auto_stop", {})
+            if "enabled" in auto:
+                auto_stop_enabled = bool(auto["enabled"])
+            if "silence_seconds" in auto:
+                try:
+                    auto_stop_silence = float(auto["silence_seconds"])
+                except (TypeError, ValueError):
+                    pass
+            dict_cfg = cfg.get("dictionary", {})
+            if "enabled" in dict_cfg:
+                dictionary_enabled = bool(dict_cfg["enabled"])
+            if isinstance(dict_cfg.get("rules"), list):
+                dictionary_rules = dict_cfg["rules"]
+            logger.info(f"⏱️ Auto-Stopp: enabled={auto_stop_enabled}, silence={auto_stop_silence}s | "
+                        f"📖 Wörterbuch: enabled={dictionary_enabled}, Regeln={len(dictionary_rules)}")
+    except Exception as e:
+        logger.warning(f"⚠️ Auto-Stopp/Wörterbuch-Config konnte nicht geladen werden: {e}")
 
     # Phase 3D: Lemonade-Health-Check (Modell-Preload entfällt — Lemonade lädt
     # selbst). Wir loggen nur den Status.
@@ -694,6 +722,11 @@ async def stop_recording():
         if text_cleanup_enabled:
             final_text = clean_text(final_text)
 
+        # Phase 3E: Wörterbuch (User-Wortersetzungen) NACH der Bereinigung,
+        # damit die Ersetzung nicht durch Duplikat-/Stotter-Logik zerstört wird
+        if dictionary_enabled and dictionary_rules:
+            final_text = apply_dictionary(final_text, dictionary_rules)
+
         # Phase 3B: LLM-Korrektur (CPU-bound, im Executor ausfuehren; lazy-load
         # beim ersten Aufruf). Bei Fehler liefert correct_text den Rohtext.
         if llm_correction_enabled:
@@ -809,6 +842,79 @@ async def get_audio_level():
     except Exception as e:
         logger.error(f"Error getting audio level: {e}")
         return {"level": 0.0, "recording": False, "error": str(e)}
+
+
+@app.get("/recording/silence-status")
+async def get_silence_status():
+    """Phase 3E: Sekunden Stille seit letztem Sprachpegel (fuer Auto-Stopp)."""
+    global is_recording, audio_capture
+    if not is_recording or not audio_capture:
+        return {"recording": False, "silence_seconds": 0.0}
+    silence = audio_capture.get_silence_seconds(threshold=0.01)
+    return {"recording": True, "silence_seconds": silence}
+
+
+@app.get("/settings/auto-stop")
+async def get_auto_stop_settings():
+    """Phase 3E: Auto-Stopp-Konfiguration auslesen."""
+    return {"enabled": auto_stop_enabled, "silence_seconds": auto_stop_silence}
+
+
+@app.post("/settings/auto-stop")
+async def set_auto_stop_settings(payload: dict):
+    """Phase 3E: Auto-Stopp-Konfiguration speichern (config.json)."""
+    global auto_stop_enabled, auto_stop_silence
+    auto_stop_enabled = bool(payload.get("enabled", auto_stop_enabled))
+    try:
+        auto_stop_silence = max(0.5, min(10.0, float(payload.get("silence_seconds", auto_stop_silence))))
+    except (TypeError, ValueError):
+        pass
+    try:
+        cfg = load_config()
+        if not isinstance(cfg, dict):
+            cfg = {}
+        cfg.setdefault("auto_stop", {})
+        cfg["auto_stop"]["enabled"] = auto_stop_enabled
+        cfg["auto_stop"]["silence_seconds"] = auto_stop_silence
+        save_config(cfg)
+    except Exception as e:
+        logger.warning(f"⚠️ Auto-Stopp-Config konnte nicht gespeichert werden: {e}")
+    logger.info(f"⏱️ Auto-Stopp gesetzt: enabled={auto_stop_enabled}, silence={auto_stop_silence}s")
+    return {"enabled": auto_stop_enabled, "silence_seconds": auto_stop_silence}
+
+
+@app.get("/settings/dictionary")
+async def get_dictionary_settings():
+    """Phase 3E: Wörterbuch-Konfiguration auslesen."""
+    return {"enabled": dictionary_enabled, "rules": dictionary_rules}
+
+
+@app.post("/settings/dictionary")
+async def set_dictionary_settings(payload: dict):
+    """Phase 3E: Wörterbuch-Konfiguration speichern (config.json)."""
+    global dictionary_enabled, dictionary_rules
+    dictionary_enabled = bool(payload.get("enabled", dictionary_enabled))
+    rules = payload.get("rules")
+    if isinstance(rules, list):
+        cleaned = []
+        for r in rules:
+            if isinstance(r, dict):
+                frm = str(r.get("from", "")).strip()
+                if frm:
+                    cleaned.append({"from": frm, "to": str(r.get("to", ""))})
+        dictionary_rules = cleaned
+    try:
+        cfg = load_config()
+        if not isinstance(cfg, dict):
+            cfg = {}
+        cfg.setdefault("dictionary", {})
+        cfg["dictionary"]["enabled"] = dictionary_enabled
+        cfg["dictionary"]["rules"] = dictionary_rules
+        save_config(cfg)
+    except Exception as e:
+        logger.warning(f"⚠️ Wörterbuch-Config konnte nicht gespeichert werden: {e}")
+    logger.info(f"📖 Wörterbuch gesetzt: enabled={dictionary_enabled}, Regeln={len(dictionary_rules)}")
+    return {"enabled": dictionary_enabled, "rules": dictionary_rules}
 
 
 # Removed /get_live_chunk endpoint - using simple record/stop flow now

@@ -126,3 +126,35 @@ def _polish(text: str) -> str:
     if text and text[0].islower():
         text = text[0].upper() + text[1:]
     return text
+
+
+def apply_dictionary(text: str, rules) -> str:
+    """Wendet User-Wortersetzungen (Wörterbuch) auf den Text an.
+
+    - Case-insensitive
+    - Wortgrenzen (\\b): ersetzt keine Teilwörter ("hans" trifft nicht "Hänschen")
+    - Sonderzeichen werden regex-escaped ("(c)" matcht literal)
+    - Mehrwort-Phrasen funktionieren über die Wortgrenzen
+    - Leere 'from'-Regeln und ungültige Einträge werden übersprungen
+    """
+    if not text:
+        return text
+    for rule in rules or []:
+        try:
+            frm = rule.get("from")
+            to = rule.get("to")
+        except AttributeError:
+            continue
+        frm = (frm or "").strip()
+        if not frm:
+            continue
+        to = to or ""
+        # Wortgrenzen als negative Lookbehind/Lookahead statt \\b: verhindert
+        # Teilwort-Treffer ("hans" != "Hanswurst"), funktioniert aber auch fuer
+        # Regeln mit Sonderzeichen an Anfang/Ende ("(c)", "v3.2")
+        pattern = re.compile(
+            r'(?<![A-Za-zÄÖÜäöüß0-9_])' + re.escape(frm) + r'(?![A-Za-zÄÖÜäöüß0-9_])',
+            re.IGNORECASE,
+        )
+        text = pattern.sub(to, text)
+    return text
